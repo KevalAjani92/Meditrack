@@ -74,7 +74,7 @@ export default function DoctorSchedulePage() {
   //   [weekStart],
   // );
   const currentSummary = currentWeekSummaries.find(
-    (d) => d.date === selectedDate,
+    (d:any) => d.date === selectedDate,
   );
 
   // // Generate appointments based on how many slots are booked for the selected date
