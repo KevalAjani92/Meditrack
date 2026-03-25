@@ -1,63 +1,138 @@
 "use client";
 
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
+import { useEffect, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { X } from "lucide-react";
-import { PaymentEntry } from "@/types/billing";
+import { X, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PaymentMode } from "@/types/billing";
+import { billingPaymentsService } from "@/services/billing-payments.service";
 
-const paymentSchema = z.object({
-  mode: z.enum(["Cash", "Card", "UPI", "Insurance", "Other"]),
-  amount: z.coerce.number().min(1, "Amount required"),
-  referenceNumber: z.string().optional(),
-});
+interface Props {
+  isOpen: boolean;
+  onClose: () => void;
+  maxAmount: number;
+  onAdd: (data: { payment_mode_id: number; amount: number; reference_number: string }) => void;
+}
 
-type FormData = z.infer<typeof paymentSchema>;
+export default function PaymentEntryModal({ isOpen, onClose, maxAmount, onAdd }: Props) {
+  const [modes, setModes] = useState<PaymentMode[]>([]);
+  const [selectedModeId, setSelectedModeId] = useState<number>(0);
+  const [amount, setAmount] = useState<number>(maxAmount);
+  const [reference, setReference] = useState("");
+  const [loadingModes, setLoadingModes] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
-interface Props { isOpen: boolean; onClose: () => void; onAdd: (payment: PaymentEntry) => void; maxAmount: number; }
+  useEffect(() => {
+    if (isOpen) {
+      setAmount(maxAmount);
+      setReference("");
+      setErrors({});
+      fetchModes();
+    }
+  }, [isOpen, maxAmount]);
 
-export default function PaymentEntryModal({ isOpen, onClose, onAdd, maxAmount }: Props) {
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({ resolver: zodResolver(paymentSchema), defaultValues: { amount: maxAmount } });
-
-  const onSubmit = (data: FormData) => {
-    onAdd({ id: `pay-${Date.now()}`, date: new Date().toISOString().split('T')[0], status: "Success", ...data });
-    reset(); onClose();
+  const fetchModes = async () => {
+    try {
+      setLoadingModes(true);
+      const res = await billingPaymentsService.getPaymentModes();
+      setModes(res || []);
+      if (res?.length > 0) {
+        setSelectedModeId(res[0].paymentModeId);
+      }
+    } catch {
+      setModes([]);
+    } finally {
+      setLoadingModes(false);
+    }
   };
+
+  const selectedMode = modes.find(m => m.paymentModeId === selectedModeId);
+
+  const handleSubmit = () => {
+    const newErrors: Record<string, string> = {};
+    if (!selectedModeId) newErrors.mode = "Select a payment mode";
+    if (!amount || amount <= 0) newErrors.amount = "Amount must be greater than 0";
+    if (amount > maxAmount) newErrors.amount = `Amount cannot exceed ₹${maxAmount.toFixed(2)}`;
+    if (selectedMode?.requiresReference && !reference.trim()) {
+      newErrors.reference = `Reference number is required for ${selectedMode.paymentModeName}`;
+    }
+    setErrors(newErrors);
+
+    if (Object.keys(newErrors).length === 0) {
+      onAdd({ payment_mode_id: selectedModeId, amount, reference_number: reference });
+      onClose();
+    }
+  };
+
+  const inputClass = "w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:ring-1 focus:ring-primary outline-none";
 
   return (
     <Dialog.Root open={isOpen} onOpenChange={onClose}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 animate-in fade-in" />
-        <Dialog.Content className="fixed left-[50%] top-[50%] z-50 w-full max-w-sm translate-x-[-50%] translate-y-[-50%] rounded-xl bg-card p-6 shadow-xl border border-border animate-in zoom-in-95">
-          <div className="flex justify-between items-center mb-5 border-b border-border pb-3">
-            <Dialog.Title className="text-lg font-bold text-foreground">Record Payment</Dialog.Title>
-            <button onClick={onClose} className="text-muted-foreground"><X className="w-5 h-5"/></button>
-          </div>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <Dialog.Overlay className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 animate-in fade-in duration-200" />
+        <Dialog.Content className="fixed left-[50%] top-[50%] z-50 w-full max-w-md translate-x-[-50%] translate-y-[-50%] rounded-2xl bg-card p-6 shadow-xl border border-border animate-in fade-in zoom-in-95 duration-200">
+          <Dialog.Title className="text-lg font-bold text-foreground flex items-center gap-2 mb-4">
+            <CreditCard className="w-5 h-5 text-primary" /> Record Payment
+          </Dialog.Title>
+
+          <div className="space-y-4">
             <div>
-              <label className="text-xs font-medium mb-1 block">Payment Mode</label>
-              <select {...register("mode")} className="w-full p-2 border rounded-md bg-background text-sm outline-none focus:ring-1 focus:ring-primary">
-                <option value="Cash">Cash</option>
-                <option value="Card">Card</option>
-                <option value="UPI">UPI</option>
-                <option value="Insurance">Insurance</option>
+              <label className="block text-sm font-medium text-foreground mb-1">Payment Mode*</label>
+              <select 
+                className={inputClass} 
+                value={selectedModeId} 
+                onChange={(e) => setSelectedModeId(Number(e.target.value))}
+                disabled={loadingModes}
+              >
+                {loadingModes ? (
+                  <option>Loading...</option>
+                ) : (
+                  modes.map(m => (
+                    <option key={m.paymentModeId} value={m.paymentModeId}>
+                      {m.paymentModeName}
+                    </option>
+                  ))
+                )}
               </select>
+              {errors.mode && <p className="text-xs text-destructive mt-1">{errors.mode}</p>}
             </div>
+
             <div>
-              <label className="text-xs font-medium mb-1 block">Amount ($) <span className="text-muted-foreground font-normal">(Max: {maxAmount.toFixed(2)})</span></label>
-              <input type="number" step="0.01" max={maxAmount} {...register("amount")} className="w-full p-2 border rounded-md bg-background text-sm outline-none focus:ring-1 focus:ring-primary" />
+              <label className="block text-sm font-medium text-foreground mb-1">Amount (₹)*</label>
+              <input 
+                type="number" step="0.01" min="0.01" max={maxAmount}
+                value={amount} 
+                onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
+                className={inputClass} 
+                placeholder={`Max: ₹${maxAmount.toFixed(2)}`} 
+              />
+              {errors.amount && <p className="text-xs text-destructive mt-1">{errors.amount}</p>}
+              <p className="text-xs text-muted-foreground mt-1">Remaining balance: ₹{maxAmount.toFixed(2)}</p>
             </div>
-            <div>
-              <label className="text-xs font-medium mb-1 block">Ref / Trans ID (Optional)</label>
-              <input {...register("referenceNumber")} className="w-full p-2 border rounded-md bg-background text-sm outline-none focus:ring-1 focus:ring-primary" placeholder="e.g. TXN123..." />
-            </div>
-            <div className="flex justify-end gap-2 pt-4">
-              <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-              <Button type="submit">Confirm Payment</Button>
-            </div>
-          </form>
+
+            {selectedMode?.requiresReference && (
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Reference Number*</label>
+                <input 
+                  type="text" 
+                  value={reference} 
+                  onChange={(e) => setReference(e.target.value)}
+                  className={inputClass} 
+                  placeholder="Transaction/Reference ID" 
+                />
+                {errors.reference && <p className="text-xs text-destructive mt-1">{errors.reference}</p>}
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-border">
+            <Button variant="outline" onClick={onClose}>Cancel</Button>
+            <Button onClick={handleSubmit}>Record Payment</Button>
+          </div>
+
+          <button onClick={onClose} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground">
+            <X className="w-5 h-5" />
+          </button>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

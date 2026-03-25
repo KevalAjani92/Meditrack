@@ -292,7 +292,7 @@ export function Sidebar() {
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex flex-col border-r bg-sidebar backdrop-blur-md transition-all duration-300 ease-in-out",
+          "fixed inset-y-0 left-0 z-50 flex flex-col border-r bg-sidebar backdrop-blur-md transition-all duration-300 ease-in-out print:hidden",
           isCollapsed ? "-translate-x-full" : "translate-x-0 w-64",
           "md:translate-x-0",
           isCollapsed ? "md:w-[70px]" : "md:w-64",

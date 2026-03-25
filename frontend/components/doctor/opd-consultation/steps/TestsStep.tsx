@@ -9,7 +9,7 @@ export default function TestsStep({ data, updateData, onEditTest, onOpenTest }: 
          <h2 className="text-xl font-bold text-foreground">Lab & Imaging Tests</h2>
          <p className="text-sm text-muted-foreground mt-1">Order diagnostic tests for the patient.</p>
        </div>
-       <TestOrdersTable tests={data.tests} onRemove={(id: string) => updateData({ tests: data.tests.filter((d:any)=>d.id !== id)})} onEdit={onEditTest} onAdd={onOpenTest} />
+       <TestOrdersTable tests={data.tests} onRemove={(id: number) => updateData({ tests: data.tests.filter((d:any)=>d.id !== id)})} onEdit={onEditTest} onAdd={onOpenTest} />
     </div>
   );
 }

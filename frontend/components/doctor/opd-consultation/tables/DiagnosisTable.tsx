@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Edit2, Trash2, Activity } from "lucide-react";
 
-interface Props { diagnoses: Diagnosis[]; onRemove: (id: string) => void; onEdit: (d: Diagnosis) => void; onAdd: () => void; }
+interface Props { diagnoses: Diagnosis[]; onRemove: (id: number) => void; onEdit: (d: Diagnosis) => void; onAdd: () => void; }
 
 export default function DiagnosisTable({ diagnoses, onRemove, onEdit, onAdd }: Props) {
   return (
@@ -27,7 +27,7 @@ export default function DiagnosisTable({ diagnoses, onRemove, onEdit, onAdd }: P
                 <td className="px-4 py-3"><Badge variant={d.isPrimary ? "default" : "secondary"}>{d.isPrimary ? "Primary" : "Secondary"}</Badge></td>
                 <td className="px-4 py-3 text-muted-foreground">{d.remarks}</td>
                 <td className="px-4 py-3 text-right">
-                  <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex justify-end gap-1 transition-opacity">
                     <button onClick={() => onEdit(d)} className="p-1.5 text-muted-foreground hover:text-primary"><Edit2 className="w-4 h-4"/></button>
                     <button onClick={() => onRemove(d.id)} className="p-1.5 text-muted-foreground hover:text-destructive"><Trash2 className="w-4 h-4"/></button>
                   </div>

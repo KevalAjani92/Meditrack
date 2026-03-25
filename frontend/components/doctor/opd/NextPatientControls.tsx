@@ -33,7 +33,7 @@ export default function NextPatientControls({ nextPatient, onCallNext }: Props) 
           <p className="text-xs text-muted-foreground">{nextPatient.age}Y • {nextPatient.chiefComplaint}</p>
         </div>
       </div>
-      <Button size="lg" onClick={() => onCallNext(nextPatient.id)} className="w-full sm:w-auto gap-2 shadow-md">
+      <Button size="lg" onClick={() => onCallNext(String(nextPatient.id))} className="w-full sm:w-auto gap-2 shadow-md">
         <Volume2 className="w-5 h-5" /> Call Next Patient
       </Button>
     </div>

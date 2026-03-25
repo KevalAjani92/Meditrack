@@ -44,13 +44,13 @@ export default function CurrentTokenPanel({ token, onSkip, onNoShow }: Props) {
         </div>
 
         <div className="flex flex-wrap gap-3 w-full lg:w-auto">
-          <Button variant="outline" onClick={() => onSkip(token.id)} className="flex-1 lg:flex-none gap-2 hover:bg-muted">
+          <Button variant="outline" onClick={() => onSkip(String(token.id))} className="flex-1 lg:flex-none gap-2 hover:bg-muted">
             <SkipForward className="w-4 h-4" /> Skip
           </Button>
-          <Button variant="outline" onClick={() => onNoShow(token.id)} className="flex-1 lg:flex-none gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30">
+          <Button variant="outline" onClick={() => onNoShow(String(token.id))} className="flex-1 lg:flex-none gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30">
             <XCircle className="w-4 h-4" /> No Show
           </Button>
-          <Button onClick={() => router.push(`/doctor/opd-consultation/${token.id}`)} className="flex-1 lg:flex-none gap-2 bg-success hover:bg-success/90 text-success-foreground py-6 text-base font-bold shadow-lg shadow-success/20">
+          <Button onClick={() => router.push(`/doctor/opd-consultation/${token.opdId || token.id}`)} className="flex-1 lg:flex-none gap-2 bg-success hover:bg-success/90 text-success-foreground py-6 text-base font-bold shadow-lg shadow-success/20">
             <Stethoscope className="w-5 h-5" /> Start Consultation
           </Button>
         </div>

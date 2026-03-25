@@ -1,10 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { AlertTriangle, CheckCircle, Printer, Download, Save, Edit2, X } from "lucide-react";
-
+import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import OpdSearchSection from "@/components/receptionist/billing/OpdSearchSection";
 import PatientVisitSummaryCard from "@/components/receptionist/billing/PatientVisitSummaryCard";
 import BillItemsTable from "@/components/receptionist/billing/BillItemsTable";
@@ -13,203 +11,329 @@ import BillSummaryCard from "@/components/receptionist/billing/BillSummaryCard";
 import PaymentSection from "@/components/receptionist/billing/PaymentSection";
 import AddBillItemModal from "@/components/receptionist/billing/AddBillItemModal";
 import PaymentEntryModal from "@/components/receptionist/billing/PaymentEntryModal";
+import { OpdVisit, BillItem, MedicineItem, PaymentEntry, ExistingBill } from "@/types/billing";
+import { billingService } from "@/services/billing.service";
+import { billingPaymentsService } from "@/services/billing-payments.service";
+import { Button } from "@/components/ui/button";
+import { Save, CheckCircle, Edit3, Printer, FileDown, Loader2 } from "lucide-react";
+import { useToast } from "@/components/ui/toast";
 
-import { 
-  OpdVisit, BillItem, MedicineItem, PaymentEntry, BillStatus, 
-  mockInitialBillItems, mockInitialMedicines, mockBilledItems, mockBilledPayments 
-} from "@/types/billing";
+// TODO: Get from auth context
+const HOSPITAL_ID = 1;
 
-export default function BillingIntegrationPage() {
+export default function BillingPage() {
+  const router = useRouter();
+  const {addToast} = useToast();
   const [selectedVisit, setSelectedVisit] = useState<OpdVisit | null>(null);
-  const [billStatus, setBillStatus] = useState<BillStatus>("Draft");
-  
-  // Track if we are editing an already finalized bill
-  const [isModifying, setIsModifying] = useState(false);
-
-  // Arrays
-  const [billItems, setBillItems] = useState<BillItem[]>([]);
-  const [medicines, setMedicines] = useState<MedicineItem[]>([]);
+  const [serviceItems, setServiceItems] = useState<BillItem[]>([]);
+  const [medicineItems, setMedicineItems] = useState<MedicineItem[]>([]);
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
+  const [existingBill, setExistingBill] = useState<ExistingBill | null>(null);
 
-  // Summary Inputs
-  const [taxPct, setTaxPct] = useState(5);
-  const [discountAmt, setDiscountAmt] = useState(0);
+  const [taxPercent, setTaxPercent] = useState(0);
+  const [discount, setDiscount] = useState(0);
+  const [billStatus, setBillStatus] = useState<"Draft" | "Finalized">("Draft");
+  const [loading, setLoading] = useState(false);
 
-  // Modals
-  const [isItemModalOpen, setItemModalOpen] = useState(false);
-  const [isPaymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [showAddItemModal, setShowAddItemModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
-  // Triggered when search selects a visit
-  const handleSelectVisit = (visit: OpdVisit) => {
+  const isReadOnly = billStatus === "Finalized";
+
+  // Calculate bill amounts
+  const subtotal = useMemo(() => {
+    const serviceTotal = serviceItems.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
+    const medTotal = medicineItems.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
+    return serviceTotal + medTotal;
+  }, [serviceItems, medicineItems]);
+
+  const taxAmount = (subtotal * taxPercent) / 100;
+  const totalAmount = subtotal + taxAmount - discount;
+  const totalPaid = payments.reduce((sum, p) => sum + p.amountPaid, 0);
+  const balanceDue = totalAmount - totalPaid;
+
+  const handleSelectVisit = async (visit: OpdVisit) => {
     setSelectedVisit(visit);
-    setIsModifying(false); // Reset modifying state on new selection
+    setServiceItems([]);
+    setMedicineItems([]);
+    setPayments([]);
+    setExistingBill(null);
+    setTaxPercent(0);
+    setDiscount(0);
+    setBillStatus("Draft");
 
-    if (visit.status === "Billed") {
-      setBillStatus("Finalized");
-      setBillItems([...mockBilledItems]);
-      setMedicines([]); // Mock empty meds for this specific patient
-      setPayments([...mockBilledPayments]);
-    } else {
-      setBillStatus("Draft");
-      setBillItems([...mockInitialBillItems]);
-      setMedicines([...mockInitialMedicines]);
-      setPayments([]);
+    try {
+      setLoading(true);
+      const data = await billingService.getVisitDetails(HOSPITAL_ID, visit.opdId);
+      
+
+      if (data.existingBill) {
+        // Load existing bill
+        const bill = data.existingBill;
+        setExistingBill(bill);
+
+        const sItems = bill.billItems.filter((i: BillItem) => i.itemType !== "Medicine");
+        const mItems = bill.billItems.filter((i: BillItem) => i.itemType === "Medicine").map((i: BillItem) => ({
+          ...i,
+          medicineCode: "",
+          medicineType: "",
+          strength: "",
+          manufacturer: "-",
+          dosage: "",
+          durationDays: 0,
+        }));
+
+        setServiceItems(sItems);
+        setMedicineItems(mItems);
+        setPayments(bill.payments || []);
+        setTaxPercent(bill.subtotalAmount > 0 ? ((bill.taxAmount / bill.subtotalAmount) * 100) : 0);
+        setDiscount(bill.discountAmount);
+        setBillStatus(bill.billingStatus === "Finalized" ? "Finalized" : "Draft");
+      } else {
+        // Load auto-collected items for new bill
+        setServiceItems(data.serviceItems || []);
+        setMedicineItems(data.medicineItems || []);
+        setBillStatus("Draft");
+      }
+    } catch (err: any) {
+      addToast(err?.message || "Failed to load visit details","error");
+    } finally {
+      setLoading(false);
     }
-    setTaxPct(5);
-    setDiscountAmt(0);
   };
 
-  // Modifying Handlers
+  const handleSaveBill = async () => {
+    if (!selectedVisit) return;
+
+    const allItems = [
+      ...serviceItems.map(i => ({
+        item_type: i.itemType,
+        reference_id: i.referenceId ?? undefined,
+        item_description: i.itemDescription,
+        quantity: i.quantity,
+        unit_price: i.unitPrice,
+      })),
+      ...medicineItems.map(i => ({
+        item_type: "Medicine" as const,
+        reference_id: i.referenceId ?? undefined,
+        item_description: i.itemDescription,
+        quantity: i.quantity,
+        unit_price: i.unitPrice,
+      })),
+    ];
+
+    if (allItems.length === 0) {
+      addToast("Add at least one bill item before saving","error");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const res = await billingService.createBill(HOSPITAL_ID, {
+        visit_id: selectedVisit.opdId,
+        bill_items: allItems,
+        tax_amount: taxAmount,
+        discount_amount: discount,
+      });
+      addToast(`Bill created: ${res.data.billNumber}`,"success");
+      setExistingBill({ ...existingBill!, billId: res.data.billId, billNumber: res.data.billNumber } as ExistingBill);
+      // Reload visit details to get full bill
+      handleSelectVisit({ ...selectedVisit, status: "Billed", billId: res.data.billId });
+    } catch (err: any) {
+      addToast(err?.message || "Failed to create bill","error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFinalizeBill = async () => {
+    if (!existingBill) return;
+
+    try {
+      setLoading(true);
+      await billingService.finalizeBill(HOSPITAL_ID, existingBill.billId);
+      addToast("Bill finalized successfully","success");
+      setBillStatus("Finalized");
+      // Reload to reflect changes
+      if (selectedVisit) {
+        handleSelectVisit(selectedVisit);
+      }
+    } catch (err: any) {
+      addToast(err?.message || "Failed to finalize bill","success");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRecordPayment = async (data: { payment_mode_id: number; amount: number; reference_number: string }) => {
+    if (!existingBill) return;
+
+    try {
+      setLoading(true);
+      await billingPaymentsService.recordPayment(HOSPITAL_ID, {
+        bill_id: existingBill.billId,
+        payment_mode_id: data.payment_mode_id,
+        amount_paid: data.amount,
+        reference_number: data.reference_number || undefined,
+      });
+      addToast("Payment recorded successfully","success");
+      // Reload bill to reflect payment
+      if (selectedVisit) {
+        handleSelectVisit(selectedVisit);
+      }
+    } catch (err: any) {
+      addToast(err?.message || "Failed to record payment","error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateServiceItem = (index: number, field: "quantity" | "unitPrice", value: number) => {
+    setServiceItems(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
+  };
+
+  const handleUpdateMedicineItem = (index: number, field: "quantity" | "unitPrice", value: number) => {
+    setMedicineItems(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
+  };
+
+  const handleRemoveServiceItem = (index: number) => {
+    setServiceItems(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleRemoveMedicineItem = (index: number) => {
+    setMedicineItems(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleModifyBill = () => {
-    setIsModifying(true);
-    setBillStatus("Draft"); // Unlocks the tables
+    setBillStatus("Draft");
   };
-
-  const handleCancelModification = () => {
-    setIsModifying(false);
-    setBillStatus("Finalized");
-    // In a real app, you would refetch or restore original items here
-    console.log("Reverted to original bill state");
-  };
-
-  const handleSaveChanges = () => {
-    setIsModifying(false);
-    setBillStatus("Finalized");
-    console.log("Saved modifications to database.");
-  };
-
-  // Updaters for Tables
-  const updateBillItem = (id: string, field: "quantity"|"unitPrice", val: number) => {
-    setBillItems(prev => prev.map(item => item.id === id ? { ...item, [field]: val } : item));
-  };
-  const removeBillItem = (id: string) => setBillItems(prev => prev.filter(item => item.id !== id));
-  
-  const updateMedItem = (id: string, field: "quantity"|"unitPrice", val: number) => {
-    setMedicines(prev => prev.map(item => item.id === id ? { ...item, [field]: val } : item));
-  };
-  const removeMedItem = (id: string) => setMedicines(prev => prev.filter(item => item.id !== id));
-
-  // Calculations
-  const itemsSubtotal = billItems.reduce((acc, item) => acc + (item.quantity * item.unitPrice), 0);
-  const medsSubtotal = medicines.reduce((acc, item) => acc + (item.quantity * item.unitPrice), 0);
-  const totalSubtotal = itemsSubtotal + medsSubtotal;
-  
-  const taxAmount = (totalSubtotal * taxPct) / 100;
-  const totalAmount = totalSubtotal + taxAmount - discountAmt;
-  
-  const paidAmount = payments.reduce((acc, pay) => acc + pay.amount, 0);
-  const remainingAmount = Math.max(0, totalAmount - paidAmount);
-
-  // UI Lock state
-  const isReadOnly = billStatus !== "Draft";
-  const isFinalized = billStatus === "Finalized";
 
   return (
-    <main className="min-h-full bg-background p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
-      
-      <div className="flex flex-col gap-1">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">Billing & Invoice</h1>
-        <p className="text-muted-foreground">Generate and manage patient bills, prescriptions, and payments.</p>
+    <div className="w-full max-w-7xl mx-auto py-6 px-4">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Billing</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Generate & manage patient bills</p>
+        </div>
       </div>
 
-      <OpdSearchSection onSelectVisit={handleSelectVisit} />
+      <OpdSearchSection hospitalId={HOSPITAL_ID} onSelectVisit={handleSelectVisit} />
 
-      {selectedVisit && (
-        <div className="animate-in fade-in duration-500">
-          
-          {/* Status Header */}
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-foreground">
-              {isModifying ? "Modifying Invoice" : "Active Invoice"}
-            </h2>
-            <Badge variant="outline" className={`px-3 py-1 uppercase tracking-widest text-xs font-bold ${
-               billStatus === 'Draft' ? 'bg-warning/10 text-warning border-warning/20' : 
-               billStatus === 'Finalized' ? 'bg-success/10 text-success border-success/20' : 
-               'bg-destructive/10 text-destructive border-destructive/20'
-            }`}>
-              Status: {isModifying ? "EDITING" : billStatus}
-            </Badge>
-          </div>
-
-          <PatientVisitSummaryCard visit={selectedVisit} />
-
-          {/* Warning Banner */}
-          {billStatus === "Draft" && !isModifying && selectedVisit.indicators.testsOrdered && (
-             <div className="mb-6 p-3 bg-warning/10 border border-warning/20 rounded-lg flex gap-2 text-sm text-warning-foreground items-center">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
-                <span className="font-medium">Unbilled Clinical Items:</span> Ensure all newly ordered lab tests and procedures have been added to the bill below.
-             </div>
-          )}
-
-          <BillItemsTable 
-            items={billItems} isReadOnly={isReadOnly} 
-            onUpdateItem={updateBillItem} onRemoveItem={removeBillItem} 
-            onOpenAddModal={() => setItemModalOpen(true)} 
-          />
-
-          <MedicineBillingSection 
-            items={medicines} isReadOnly={isReadOnly} 
-            onUpdateItem={updateMedItem} onRemoveItem={removeMedItem} 
-          />
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            <BillSummaryCard 
-              subtotal={totalSubtotal} taxPct={taxPct} discountAmt={discountAmt} total={totalAmount} 
-              isReadOnly={isReadOnly} onUpdateTax={setTaxPct} onUpdateDiscount={setDiscountAmt} 
-            />
-            <PaymentSection 
-              total={totalAmount} paidAmount={paidAmount} remainingAmount={remainingAmount} 
-              payments={payments} isFinalized={isFinalized} onOpenPaymentModal={() => setPaymentModalOpen(true)} 
-            />
-          </div>
-
-          {/* Action Bar */}
-          <div className="sticky bottom-4 z-10 bg-card/95 backdrop-blur-md border border-border p-4 rounded-xl shadow-lg flex flex-wrap items-center justify-between gap-4">
-             <div className="flex gap-3">
-               
-               {/* State 1: New Draft Bill */}
-               {!isFinalized && !isModifying && (
-                 <>
-                   <Button variant="outline" className="gap-2" onClick={() => console.log("Saved Draft")}><Save className="w-4 h-4" /> Save Draft</Button>
-                   <Button className="gap-2 bg-success hover:bg-success/90 text-success-foreground" onClick={() => setBillStatus("Finalized")}><CheckCircle className="w-4 h-4" /> Finalize Bill</Button>
-                 </>
-               )}
-
-               {/* State 2: Modifying an Existing Bill */}
-               {!isFinalized && isModifying && (
-                 <>
-                   <Button variant="outline" className="gap-2" onClick={handleCancelModification}><X className="w-4 h-4" /> Cancel Modifying</Button>
-                   <Button className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground" onClick={handleSaveChanges}><Save className="w-4 h-4" /> Save Changes</Button>
-                 </>
-               )}
-
-               {/* State 3: Finalized (Read-Only) */}
-               {isFinalized && (
-                  <>
-                    <Button variant="outline" className="gap-2 text-primary border-primary/30 hover:bg-primary/10" onClick={handleModifyBill}>
-                      <Edit2 className="w-4 h-4" /> Modify Bill
-                    </Button>
-                    {remainingAmount <= 0 && (
-                      <Badge variant="outline" className="bg-success/10 text-success border-success/30 px-4 ml-2">PAID IN FULL</Badge>
-                    )}
-                  </>
-               )}
-
-             </div>
-             
-             <div className="flex gap-3">
-                <Button variant="secondary" className="gap-2"><Download className="w-4 h-4" /> PDF</Button>
-                <Button variant="secondary" className="gap-2"><Printer className="w-4 h-4" /> Print</Button>
-             </div>
-          </div>
-
+      {loading && (
+        <div className="flex items-center justify-center py-12 text-muted-foreground gap-2">
+          <Loader2 className="w-5 h-5 animate-spin" /> Loading...
         </div>
       )}
 
-      {/* Modals */}
-      <AddBillItemModal isOpen={isItemModalOpen} onClose={() => setItemModalOpen(false)} onAdd={(item) => setBillItems(prev => [...prev, item])} />
-      <PaymentEntryModal isOpen={isPaymentModalOpen} onClose={() => setPaymentModalOpen(false)} onAdd={(pay) => setPayments(prev => [...prev, pay])} maxAmount={remainingAmount} />
+      {selectedVisit && !loading && (
+        <>
+          <PatientVisitSummaryCard visit={selectedVisit} />
 
-    </main>
+          <BillItemsTable
+            items={serviceItems}
+            isReadOnly={isReadOnly}
+            onUpdateItem={handleUpdateServiceItem}
+            onRemoveItem={handleRemoveServiceItem}
+            onOpenAddModal={() => setShowAddItemModal(true)}
+          />
+
+          <MedicineBillingSection
+            items={medicineItems}
+            isReadOnly={isReadOnly}
+            onUpdateItem={handleUpdateMedicineItem}
+            onRemoveItem={handleRemoveMedicineItem}
+          />
+
+          <BillSummaryCard
+            subtotal={subtotal}
+            taxPercent={taxPercent}
+            discount={discount}
+            isReadOnly={isReadOnly}
+            onTaxChange={setTaxPercent}
+            onDiscountChange={setDiscount}
+          />
+
+          <PaymentSection
+            totalAmount={totalAmount}
+            payments={payments}
+            isFinalized={billStatus === "Finalized"}
+            onOpenPaymentModal={() => setShowPaymentModal(true)}
+          />
+
+          {/* Action Buttons */}
+          <div className="flex flex-wrap justify-end gap-3 mt-6 pb-8">
+            {billStatus === "Draft" && !existingBill && (
+              <Button onClick={handleSaveBill} className="gap-2" disabled={loading}>
+                <Save className="w-4 h-4" /> Save Draft
+              </Button>
+            )}
+            {billStatus === "Draft" && existingBill && (
+              <Button onClick={handleFinalizeBill} className="gap-2" disabled={loading}>
+                <CheckCircle className="w-4 h-4" /> Finalize Bill
+              </Button>
+            )}
+            {billStatus === "Finalized" && (
+              <>
+                <Button variant="outline" onClick={handleModifyBill} className="gap-2">
+                  <Edit3 className="w-4 h-4" /> Modify Bill
+                </Button>
+                <Button variant="outline" 
+                  onClick={() => existingBill && router.push(`/receptionist/billing/print/${existingBill.billId}`)} 
+                  className="gap-2"
+                >
+                  <Printer className="w-4 h-4" /> Preview / Print
+                </Button>
+                <Button 
+                  onClick={async () => {
+                    if (!existingBill) return;
+                    try {
+                      const res = await billingService.downloadBillPdf(HOSPITAL_ID, existingBill.billId);
+                      const pdfData = res.data || res; 
+                      const blob = new Blob([pdfData], { type: "application/pdf" });
+                      const url = URL.createObjectURL(blob);
+                      const link = document.createElement("a");
+                      link.href = url;
+                      link.setAttribute("download",`bill-${existingBill.billNumber}.pdf`);
+                      document.body.appendChild(link);
+                      link.click();
+                      // Cleanup
+                      link.parentNode?.removeChild(link);  
+                      URL.revokeObjectURL(url);
+                      addToast("Bill PDF downloaded","success");
+                    } catch {
+                      addToast("Failed to download PDF","error");
+                    }
+                  }}
+                  className="gap-2"
+                >
+                  <FileDown className="w-4 h-4" /> Download PDF
+                </Button>
+              </>
+            )}
+          </div>
+
+          {/* Modals */}
+          <AddBillItemModal
+            isOpen={showAddItemModal}
+            onClose={() => setShowAddItemModal(false)}
+            onAdd={(item) => {
+              setServiceItems(prev => [...prev, {
+                itemType: item.type as BillItem["itemType"],
+                itemDescription: item.desc,
+                quantity: item.qty,
+                unitPrice: item.price,
+              }]);
+            }}
+          />
+
+          <PaymentEntryModal
+            isOpen={showPaymentModal}
+            onClose={() => setShowPaymentModal(false)}
+            maxAmount={balanceDue > 0 ? balanceDue : 0}
+            onAdd={handleRecordPayment}
+          />
+        </>
+      )}
+    </div>
   );
 }

@@ -31,7 +31,7 @@ export default function PatientVisitSummaryCard({ visit }: { visit: OpdVisit }) 
         <div className="space-y-1">
           <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider flex items-center gap-1.5"><Stethoscope className="w-3.5 h-3.5" /> Doctor Info</p>
           <p className="font-bold text-foreground">{visit.doctorName}</p>
-          <p className="text-sm text-muted-foreground">{visit.doctorId}</p>
+          <p className="text-sm text-muted-foreground">{visit.department}</p>
         </div>
       </div>
 

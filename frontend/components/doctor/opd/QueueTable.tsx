@@ -70,7 +70,7 @@ export default function QueueTable({ queue, onCall }: Props) {
                 </td>
                 <td className="px-4 py-3 text-right">
                   {token.status === "Waiting" && (
-                    <Button variant="outline" size="sm" onClick={() => onCall(token.id)} className="h-8 gap-1.5 text-primary hover:text-primary hover:bg-primary/10 border-primary/20">
+                    <Button variant="outline" size="sm" onClick={() => onCall(String(token.id))} className="h-8 gap-1.5 text-primary hover:text-primary hover:bg-primary/10 border-primary/20">
                       <Volume2 className="w-3.5 h-3.5" /> Call
                     </Button>
                   )}

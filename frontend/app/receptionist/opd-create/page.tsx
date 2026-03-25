@@ -58,6 +58,7 @@ export default function CreateOpdVisitPage() {
 
   const createOpdMutation = useCreateOpd();
   const { addToast } = useToast();
+  console.log(appointment)
 
   // const handleSubmit = (formData: OpdFormData) => {
   //   const finalPayload = {
@@ -88,7 +89,6 @@ export default function CreateOpdVisitPage() {
       clinical_notes: formData.clinicalNotes,
       skip_queue: formData.skipQueue ?? false,
     };
-
     createOpdMutation.mutate(payload, {
       onSuccess: (res) => {
         setModalData(res);

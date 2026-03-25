@@ -1,5 +1,6 @@
 export interface PatientEMR {
   id: string;
+  patientId: number;
   name: string;
   age: number;
   gender: string;
@@ -18,22 +19,28 @@ export interface PatientEMR {
 }
 
 export interface Diagnosis {
-  id: string;
+  id: number;
+  diagnosisId?: number;
   name: string;
   code: string;
   department: string;
   isPrimary: boolean;
   remarks: string;
 }
+
 export interface Procedure {
-  id: string;
+  id: number;
+  procedureId?: number;
   name: string;
   code: string;
   date: string;
   remarks: string;
 }
+
 export interface Prescription {
-  id: string;
+  id: number;
+  prescriptionId?: number;
+  medicineId?: number;
   medicineName: string;
   dosage: string;
   quantity: number;
@@ -41,15 +48,18 @@ export interface Prescription {
   instructions: string;
   timing: string;
 }
+
 export interface TestOrder {
-  id: string;
+  id: number;
+  testId?: number;
   testName: string;
   code: string;
   status: "Ordered" | "Sample Collected" | "Completed" | "Cancelled";
   remarks: string;
 }
+
 export interface FollowUp {
-  id: string;
+  id: number;
   date: string;
   reason: string;
   status: "Pending" | "Completed" | "Missed";
@@ -67,54 +77,13 @@ export interface ConsultationData {
 }
 
 export interface PastVisit {
-  id: string;
+  id: number;
+  opdNo?: string;
   date: string;
   doctor: string;
   department: string;
   diagnoses: string[];
-  procedures:string[];
-  tests:string[];
+  procedures: string[];
+  tests: string[];
   prescriptions: string[];
 }
-
-export const mockPatientEMR: PatientEMR = {
-  id: "PT-10024",
-  name: "Rahul Sharma",
-  age: 45,
-  gender: "Male",
-  dob: "1981-05-12",
-  type: "Registered",
-  phone: "+91 9876543210",
-  email: "rahul@example.com",
-  city: "Mumbai",
-  address: "123, Sea View Apts, Bandra",
-  bloodGroup: "O+",
-  allergies: "Penicillin, Peanuts",
-  chronicConditions: "Hypertension, Type 2 Diabetes",
-  currentMedications: "Amlodipine 5mg",
-  tokenNo: "T-14",
-  visitTime: "10:30 AM",
-};
-
-export const mockPastVisits: PastVisit[] = [
-  {
-    id: "v1",
-    date: "2025-11-15",
-    doctor: "Dr. Alice Brown",
-    department: "Cardiology",
-    diagnoses: ["Essential Hypertension"],
-    prescriptions: ["Amlodipine 5mg", "Aspirin 75mg"],
-    procedures: ["ECG - Electrocardiogram"], // New array
-    tests: ["Lipid Profile", "Complete Blood Count (CBC)"], // New array
-  },
-  {
-    id: "v2",
-    date: "2025-06-10",
-    doctor: "Dr. Robert Fox",
-    department: "General Medicine",
-    diagnoses: ["Viral Fever"],
-    prescriptions: ["Paracetamol 500mg"],
-    procedures: [],
-    tests: [],
-  },
-];

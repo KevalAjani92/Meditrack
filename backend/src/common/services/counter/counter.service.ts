@@ -195,7 +195,7 @@ export class CounterService {
           hospital_group_id: hospital.hospital_group_id,
           hospital_id: hospitalId,
           counter_type: 'APPOINTMENT',
-          prefix: 'APT',
+          prefix: `APT-${hospital.hospital_code}`,
           current_value: 0,
           reset_policy: 'DAILY',
           is_active: true,

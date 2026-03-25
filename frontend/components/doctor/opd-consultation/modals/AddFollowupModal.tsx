@@ -1,101 +1,89 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
-import { useForm } from "react-hook-form";
-import * as z from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { X } from "lucide-react";
-import { FollowUp } from "@/types/consultation";
+import { useState, useEffect } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { FollowUp } from "@/types/consultation";
 
-const schema = z.object({
-  date: z.string().min(1, "Date required"),
-  reason: z.string().min(2, "Reason required"),
-  status: z.enum(["Pending", "Completed", "Missed"]),
-});
+interface Props {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (data: any) => void;
+  editData?: FollowUp;
+}
 
-interface Props { isOpen: boolean; onClose: () => void; onSave: (data: any) => void; defaultValues: FollowUp | null; }
+export default function AddFollowupModal({ isOpen, onClose, onSave, editData }: Props) {
+  const [date, setDate] = useState("");
+  const [reason, setReason] = useState("");
+  const [daysFromNow, setDaysFromNow] = useState<number | "">(7);
 
-export default function AddFollowupModal({ isOpen, onClose, onSave, defaultValues }: Props) {
-  const isEdit = !!defaultValues;
-  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm({ 
-    resolver: zodResolver(schema), 
-    defaultValues: { status: "Pending" } 
-  });
-  
-  const [days, setDays] = useState("");
+  useEffect(() => {
+    if (editData) {
+      setDate(editData.date);
+      setReason(editData.reason);
+      setDaysFromNow("");
+    } else {
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + 7);
+      setDate(futureDate.toISOString().split("T")[0]);
+      setReason("");
+      setDaysFromNow(7);
+    }
+  }, [editData, isOpen]);
 
-  useEffect(() => { 
-    if (isOpen) { 
-      reset(defaultValues || { date: "", reason: "", status: "Pending" }); 
-      setDays(""); 
-    } 
-  }, [isOpen, defaultValues, reset]);
-
-  // Auto calculate date when days are entered
-  const handleDaysChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setDays(val);
-    if(val && !isNaN(parseInt(val))) {
-      const d = new Date(); 
-      d.setDate(d.getDate() + parseInt(val));
-      setValue("date", d.toISOString().split('T')[0], { shouldValidate: true });
+  const handleDaysChange = (days: number) => {
+    setDaysFromNow(days);
+    if (days > 0) {
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + days);
+      setDate(futureDate.toISOString().split("T")[0]);
     }
   };
 
-  const onSubmit = (data: any) => { 
-    onSave({ id: defaultValues?.id || `fu-${Date.now()}`, ...data }); 
-    onClose(); 
+  const handleSave = () => {
+    if (!date || !reason) return;
+    onSave({ date, reason, status: "Pending" });
   };
 
   return (
-    <Dialog.Root open={isOpen} onOpenChange={onClose}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 animate-in fade-in" />
-        <Dialog.Content className="fixed left-[50%] top-[50%] z-50 w-full max-w-md translate-x-[-50%] translate-y-[-50%] rounded-xl bg-card p-6 shadow-xl border border-border animate-in zoom-in-95">
-          <div className="flex justify-between items-center mb-5">
-            <Dialog.Title className="text-lg font-bold text-foreground">{isEdit ? "Edit Follow-Up" : "Schedule Follow-Up"}</Dialog.Title>
-            <button onClick={onClose}><X className="w-5 h-5 text-muted-foreground hover:text-foreground"/></button>
-          </div>
-          <div className="space-y-4">
-            
-            <div className="grid grid-cols-2 gap-4 bg-muted/20 p-3 rounded-lg border border-border">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-muted-foreground">Days After</label>
-                <input type="number" value={days} onChange={handleDaysChange} placeholder="e.g. 7" className="w-full px-3 py-2 border border-input rounded-md bg-background focus:ring-1 focus:ring-primary outline-none" />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-muted-foreground">Specific Date</label>
-                <input type="date" {...register("date")} className="w-full px-3 py-2 border border-input rounded-md bg-background focus:ring-1 focus:ring-primary outline-none" />
-                {errors.date && <p className="text-xs text-destructive">{(errors.date as any).message}</p>}
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Reason for Follow-up</label>
-              <input {...register("reason")} placeholder="e.g. Review test reports" className="w-full px-3 py-2 border border-input rounded-md bg-background focus:ring-1 focus:ring-primary outline-none" />
-              {errors.reason && <p className="text-xs text-destructive">{(errors.reason as any).message}</p>}
-            </div>
-
-            {isEdit && (
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Status</label>
-                <select {...register("status")} className="w-full px-3 py-2 border border-input rounded-md bg-background focus:ring-1 focus:ring-primary outline-none">
-                  <option value="Pending">Pending</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Missed">Missed</option>
-                </select>
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2 pt-4 border-t border-border mt-4">
-              <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-              <Button type="button" onClick={handleSubmit(onSubmit)}>{isEdit ? "Save Changes" : "Add Schedule"}</Button>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-[450px]">
+        <DialogHeader>
+          <DialogTitle>{editData ? "Edit" : "Schedule"} Follow-Up</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div>
+            <label className="text-sm font-medium text-foreground">Quick Select (Days from today)</label>
+            <div className="flex gap-2 mt-2">
+              {[3, 7, 14, 30, 60, 90].map((d) => (
+                <button
+                  key={d}
+                  onClick={() => handleDaysChange(d)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
+                    daysFromNow === d
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background border-input text-foreground hover:bg-muted"
+                  }`}
+                >
+                  {d}d
+                </button>
+              ))}
             </div>
           </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+          <div>
+            <label className="text-sm font-medium text-foreground">Follow-Up Date <span className="text-destructive">*</span></label>
+            <input type="date" value={date} onChange={(e) => { setDate(e.target.value); setDaysFromNow(""); }} className="w-full mt-1 p-2.5 border border-input rounded-md bg-background text-sm" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-foreground">Reason <span className="text-destructive">*</span></label>
+            <textarea value={reason} onChange={(e) => setReason(e.target.value)} className="w-full mt-1 p-2.5 border border-input rounded-md bg-background text-sm resize-none h-20" placeholder="Reason for follow-up..." />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} disabled={!date || !reason}>Schedule</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

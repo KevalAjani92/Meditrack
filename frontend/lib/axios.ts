@@ -24,6 +24,9 @@ export const apiClient = axios.create({
 apiClient.interceptors.response.use(
   (response) => {
     // console.log("Response:"+response);
+    if (response.config.responseType === 'arraybuffer' || response.config.responseType === 'blob') {
+      return response; 
+    }
 
     const data = response.data;
     // console.log(data);

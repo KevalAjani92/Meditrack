@@ -2,14 +2,14 @@
 
 import { BillItem } from "@/types/billing";
 import { Card } from "@/components/ui/card";
-import { Trash2, Plus, FileText, AlertTriangle } from "lucide-react";
+import { Trash2, Plus, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface Props {
   items: BillItem[];
   isReadOnly: boolean;
-  onUpdateItem: (id: string, field: "quantity" | "unitPrice", value: number) => void;
-  onRemoveItem: (id: string) => void;
+  onUpdateItem: (index: number, field: "quantity" | "unitPrice", value: number) => void;
+  onRemoveItem: (index: number) => void;
   onOpenAddModal: () => void;
 }
 
@@ -46,35 +46,35 @@ export default function BillItemsTable({ items, isReadOnly, onUpdateItem, onRemo
                   No service items added yet.
                 </td>
               </tr>
-            ) : items.map((item) => (
-              <tr key={item.id} className="hover:bg-muted/5 transition-colors group">
-                <td className="px-4 py-3 font-medium text-foreground">{item.type}</td>
-                <td className="px-4 py-3 text-muted-foreground">{item.description}</td>
+            ) : items.map((item, index) => (
+              <tr key={index} className="hover:bg-muted/5 transition-colors group">
+                <td className="px-4 py-3 font-medium text-foreground">{item.itemType}</td>
+                <td className="px-4 py-3 text-muted-foreground">{item.itemDescription}</td>
                 <td className="px-4 py-3 text-right">
                   <input 
                     type="number" min="1" disabled={isReadOnly}
                     value={item.quantity}
-                    onChange={(e) => onUpdateItem(item.id, "quantity", parseFloat(e.target.value) || 0)}
+                    onChange={(e) => onUpdateItem(index, "quantity", parseFloat(e.target.value) || 0)}
                     className="w-16 px-2 py-1 text-right border border-input rounded bg-background focus:ring-1 focus:ring-primary disabled:opacity-50 outline-none"
                   />
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="relative inline-block w-24">
-                    <span className="absolute left-2 top-1.5 text-muted-foreground">$</span>
+                    <span className="absolute left-2 top-1.5 text-muted-foreground">₹</span>
                     <input 
                       type="number" min="0" step="0.01" disabled={isReadOnly}
                       value={item.unitPrice}
-                      onChange={(e) => onUpdateItem(item.id, "unitPrice", parseFloat(e.target.value) || 0)}
+                      onChange={(e) => onUpdateItem(index, "unitPrice", parseFloat(e.target.value) || 0)}
                       className="w-full pl-6 pr-2 py-1 text-right border border-input rounded bg-background focus:ring-1 focus:ring-primary disabled:opacity-50 outline-none"
                     />
                   </div>
                 </td>
                 <td className="px-4 py-3 text-right font-medium text-foreground">
-                  ${(item.quantity * item.unitPrice).toFixed(2)}
+                  ₹{(item.quantity * item.unitPrice).toFixed(2)}
                 </td>
                 <td className="px-4 py-3 text-center">
                   {!isReadOnly && (
-                    <button onClick={() => onRemoveItem(item.id)} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors opacity-0 group-hover:opacity-100">
+                    <button onClick={() => onRemoveItem(index)} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors opacity-0 group-hover:opacity-100">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   )}

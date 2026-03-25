@@ -9,7 +9,7 @@ export default function FollowUpStep({ data, updateData, onEditFollowup, onOpenF
          <h2 className="text-xl font-bold text-foreground">Schedule Follow-Up</h2>
          <p className="text-sm text-muted-foreground mt-1">Set a future date for the patient to return.</p>
        </div>
-       <FollowUpTable followUps={data.followUps} onRemove={(id: string) => updateData({ followUps: data.followUps.filter((d:any)=>d.id !== id)})} onEdit={onEditFollowup} onAdd={onOpenFollowup} />
+       <FollowUpTable followUps={data.followUps} onRemove={(id: number) => updateData({ followUps: data.followUps.filter((d:any)=>d.id !== id)})} onEdit={onEditFollowup} onAdd={onOpenFollowup} />
     </div>
   );
 }

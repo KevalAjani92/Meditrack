@@ -8,7 +8,7 @@ import { Plus, Edit2, Trash2, FlaskConical } from "lucide-react";
 
 interface Props { 
   tests: TestOrder[]; 
-  onRemove: (id: string) => void; 
+  onRemove: (id: number) => void; 
   onEdit: (t: TestOrder) => void; 
   onAdd: () => void; 
 }
@@ -56,7 +56,7 @@ export default function TestOrdersTable({ tests, onRemove, onEdit, onAdd }: Prop
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">{t.remarks || "—"}</td>
                 <td className="px-4 py-3 text-right">
-                  <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex justify-end gap-1 transition-opacity">
                     <button onClick={() => onEdit(t)} className="p-1.5 text-muted-foreground hover:text-primary rounded"><Edit2 className="w-4 h-4"/></button>
                     <button onClick={() => onRemove(t.id)} className="p-1.5 text-muted-foreground hover:text-destructive rounded"><Trash2 className="w-4 h-4"/></button>
                   </div>

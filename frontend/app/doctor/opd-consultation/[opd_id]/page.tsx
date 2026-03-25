@@ -1,21 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight, Save, CheckCircle } from "lucide-react";
 
-// Layout & Steps
 import PatientHeader from "@/components/doctor/opd-consultation/PatientHeader";
-import ConsultationStepper from "@/components/doctor/opd-consultation/ConsultationStepper";
-import PatientProfileStep from "@/components/doctor/opd-consultation/steps/PatientProfileStep";
+import PastVisitsTimeline from "@/components/doctor/opd-consultation/PastVisitsTimeline";
+
 import ConsultationStep from "@/components/doctor/opd-consultation/steps/ConsultationStep";
 import PrescriptionStep from "@/components/doctor/opd-consultation/steps/PrescriptionStep";
-import TestsStep from "@/components/doctor/opd-consultation/steps/TestsStep";
-import FollowUpStep from "@/components/doctor/opd-consultation/steps/FollowUpStep";
+import TestStep from "@/components/doctor/opd-consultation/steps/TestsStep";
+import FollowupStep from "@/components/doctor/opd-consultation/steps/FollowUpStep";
 import ConsultationSummaryStep from "@/components/doctor/opd-consultation/steps/ConsultationSummaryStep";
 
-// Modals
 import AddDiagnosisModal from "@/components/doctor/opd-consultation/modals/AddDiagnosisModal";
 import AddProcedureModal from "@/components/doctor/opd-consultation/modals/AddProcedureModal";
 import AddMedicineModal from "@/components/doctor/opd-consultation/modals/AddMedicineModal";
@@ -23,25 +21,40 @@ import AddTestModal from "@/components/doctor/opd-consultation/modals/AddTestMod
 import AddFollowupModal from "@/components/doctor/opd-consultation/modals/AddFollowupModal";
 
 import {
-  mockPatientEMR,
   ConsultationData,
+  PatientEMR,
   Diagnosis,
   Procedure,
   Prescription,
   TestOrder,
   FollowUp,
+  PastVisit,
 } from "@/types/consultation";
+import { opdConsultationService } from "@/services/opd-consultation.service";
 
-export default function OpdConsultationPage({
-  params,
-}: {
-  params: { opd_id: string };
-}) {
-  const [step, setStep] = useState(1);
-  const [isSaving, setIsSaving] = useState(false);
+const steps = [
+  "Profile",
+  "Consultation",
+  "Prescription",
+  "Tests",
+  "Follow-up",
+  "Summary",
+];
 
-  // --- Main EMR Data State ---
-  const [data, setData] = useState<ConsultationData>({
+export default function OPDConsultationPage() {
+  const params = useParams();
+  const router = useRouter();
+  const opdId = Number(params.opd_id);
+
+  const [currentStep, setCurrentStep] = useState(0);
+  const [patient, setPatient] = useState<PatientEMR | null>(null);
+  const [pastVisits, setPastVisits] = useState<PastVisit[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isAutosaving, setIsAutosaving] = useState(false);
+  const [completing, setCompleting] = useState(false);
+  const debounceTimer = useRef<NodeJS.Timeout>(null);
+
+  const [consultationData, setConsultationData] = useState<ConsultationData>({
     chiefComplaint: "",
     clinicalNotes: "",
     adviceNotes: "",
@@ -52,200 +65,517 @@ export default function OpdConsultationPage({
     followUps: [],
   });
 
-  // --- Modal States (Tracking Open state + Which item to edit) ---
-  const [diagModal, setDiagModal] = useState<{
-    isOpen: boolean;
-    data: Diagnosis | null;
-  }>({ isOpen: false, data: null });
-  const [procModal, setProcModal] = useState<{
-    isOpen: boolean;
-    data: Procedure | null;
-  }>({ isOpen: false, data: null });
-  const [medModal, setMedModal] = useState<{
-    isOpen: boolean;
-    data: Prescription | null;
-  }>({ isOpen: false, data: null });
-  const [testModal, setTestModal] = useState<{
-    isOpen: boolean;
-    data: TestOrder | null;
-  }>({ isOpen: false, data: null });
-  const [followModal, setFollowModal] = useState<{
-    isOpen: boolean;
-    data: FollowUp | null;
-  }>({ isOpen: false, data: null });
+  // ─── Modal States ─────────────────────────────────────────────
+  const [diagModal, setDiagModal] = useState(false);
+  const [procModal, setProcModal] = useState(false);
+  const [medModal, setMedModal] = useState(false);
+  const [testModal, setTestModal] = useState(false);
+  const [followupModal, setFollowupModal] = useState(false);
+  const [editDiag, setEditDiag] = useState<Diagnosis | undefined>();
+  const [editProc, setEditProc] = useState<Procedure | undefined>();
+  const [editMed, setEditMed] = useState<Prescription | undefined>();
+  const [editTest, setEditTest] = useState<TestOrder | undefined>();
+  const [editFollowup, setEditFollowup] = useState<FollowUp | undefined>();
 
-  // --- Autosave Simulator ---
+  // ─── Load Data ────────────────────────────────────────────────
   useEffect(() => {
-    setIsSaving(true);
-    const timer = setTimeout(() => setIsSaving(false), 1000);
-    return () => clearTimeout(timer);
-  }, [data]);
+    if (!opdId) return;
+    setLoading(true);
 
-  // Helper to partially update main state
-  const updateData = (updates: Partial<ConsultationData>) =>
-    setData((prev) => ({ ...prev, ...updates }));
+    Promise.all([
+      opdConsultationService.getVisitDetails(opdId),
+      opdConsultationService.getPastVisits(opdId),
+    ])
+      .then(([visitRes, pastRes]) => {
+        // console.log(pastRes);
+        const vd = visitRes;
+        setPatient(vd.patient);
+        setConsultationData({
+          chiefComplaint: vd.chiefComplaint || "",
+          clinicalNotes: vd.clinicalNotes || "",
+          adviceNotes: "",
+          diagnoses: vd.diagnoses || [],
+          procedures: vd.procedures || [],
+          prescriptions: vd.prescriptions || [],
+          tests: vd.tests || [],
+          followUps: vd.followUps || [],
+        });
+        setPastVisits(pastRes || []);
+      })
+      .catch((err) => console.error("Load failed:", err))
+      .finally(() => setLoading(false));
+  }, [opdId]);
 
-  // Generic Save Handlers for Modals (Handles both Add and Edit based on presence of ID)
-  const handleSaveItem = (listName: keyof ConsultationData, item: any) => {
-    const list = data[listName] as any[];
-    const exists = list.some((x) => x.id === item.id);
-    if (exists) {
-      updateData({
-        [listName]: list.map((x) => (x.id === item.id ? item : x)),
-      } as any);
-    } else {
-      updateData({ [listName]: [...list, item] } as any);
+  // ─── Auto-save debounce for chief complaint & clinical notes ─
+  const updateData = useCallback(
+    (updates: Partial<ConsultationData>) => {
+      setConsultationData((prev) => {
+        const next = { ...prev, ...updates };
+
+        // Debounce save chief_complaint and clinical_notes
+        if (
+          updates.chiefComplaint !== undefined ||
+          updates.clinicalNotes !== undefined
+        ) {
+          if (debounceTimer.current) clearTimeout(debounceTimer.current);
+          debounceTimer.current = setTimeout(async () => {
+            setIsAutosaving(true);
+            try {
+              await opdConsultationService.updateVisit(opdId, {
+                chief_complaint: next.chiefComplaint,
+                clinical_notes: next.clinicalNotes,
+              });
+            } catch (e) {
+              console.error("Autosave failed:", e);
+            } finally {
+              setIsAutosaving(false);
+            }
+          }, 1000);
+        }
+
+        return next;
+      });
+    },
+    [opdId],
+  );
+
+  // ─── Diagnosis Handlers ───────────────────────────────────────
+  const handleSaveDiagnosis = async (diag: any) => {
+    try {
+      const res = await opdConsultationService.addDiagnosis(opdId, {
+        diagnosis_id: diag.diagnosisId || diag.id,
+        is_primary: diag.isPrimary,
+        remarks: diag.remarks,
+      });
+      
+      setConsultationData((prev) => ({
+        ...prev,
+        diagnoses: [...(prev.diagnoses || []), res?.data].filter(Boolean),
+      }));
+    } catch (e: any) {
+      alert(e?.message || "Failed to add diagnosis.");
+    }
+    setDiagModal(false);
+    setEditDiag(undefined);
+  };
+
+  const handleRemoveDiagnosis = async (id: number) => {
+    try {
+      await opdConsultationService.removeDiagnosis(opdId, id);
+      setConsultationData((prev) => ({
+        ...prev,
+        diagnoses: prev.diagnoses.filter((d) => d.id !== id),
+      }));
+    } catch (e: any) {
+      alert(e?.message || "Failed to remove diagnosis.");
     }
   };
 
-  // --- Navigation ---
-  const handleNext = () => {
-    if (step < 6) setStep((s) => s + 1);
+  // ─── Procedure Handlers ──────────────────────────────────────
+  const handleSaveProcedure = async (proc: any) => {
+    try {
+      const res = await opdConsultationService.addProcedure(opdId, {
+        procedure_id: proc.procedureId || proc.id,
+        procedure_date: proc.date,
+        remarks: proc.remarks,
+      });
+      setConsultationData((prev) => ({
+        ...prev,
+        procedures: [
+          ...prev.procedures.filter((p) => p.id !== proc.id),
+          res.data,
+        ],
+      }));
+    } catch (e: any) {
+      alert(e?.message || "Failed to add procedure.");
+    }
+    setProcModal(false);
+    setEditProc(undefined);
   };
-  const handleBack = () => {
-    if (step > 1) setStep((s) => s - 1);
+
+  const handleRemoveProcedure = async (id: number) => {
+    try {
+      await opdConsultationService.removeProcedure(opdId, id);
+      setConsultationData((prev) => ({
+        ...prev,
+        procedures: prev.procedures.filter((p) => p.id !== id),
+      }));
+    } catch (e: any) {
+      alert(e?.message || "Failed to remove procedure.");
+    }
   };
-  const handleComplete = () => {
-    console.log("Consultation Completed:", data);
+
+  // ─── Medicine/Prescription Handlers ──────────────────────────
+  const handleSaveMedicine = async (med: any) => {
+    try {
+      const res = await opdConsultationService.savePrescription(opdId, {
+        notes: "",
+        items: [
+          {
+            medicine_id: med.medicineId || med.id,
+            dosage: med.dosage,
+            quantity: med.quantity,
+            duration_days: med.durationDays,
+            instructions: med.instructions,
+          },
+        ],
+      });
+      if (res.data && res.data.length > 0) {
+        setConsultationData((prev) => ({
+          ...prev,
+          prescriptions: [...prev.prescriptions, ...res.data],
+        }));
+      }
+    } catch (e: any) {
+      alert(e?.message || "Failed to save prescription.");
+    }
+    setMedModal(false);
+    setEditMed(undefined);
   };
+
+  // ─── Test Handlers ───────────────────────────────────────────
+  const handleSaveTest = async (test: any) => {
+    try {
+      const res = await opdConsultationService.orderTest(opdId, {
+        test_id: test.testId || test.id,
+        remarks: test.remarks,
+      });
+      setConsultationData((prev) => ({
+        ...prev,
+        tests: [...prev.tests.filter((t) => t.id !== test.id), res.data],
+      }));
+    } catch (e: any) {
+      alert(e?.message || "Failed to order test.");
+    }
+    setTestModal(false);
+    setEditTest(undefined);
+  };
+
+  const handleRemoveTest = async (id: number) => {
+    try {
+      await opdConsultationService.removeTest(opdId, id);
+      setConsultationData((prev) => ({
+        ...prev,
+        tests: prev.tests.filter((t) => t.id !== id),
+      }));
+    } catch (e: any) {
+      alert(e?.message || "Failed to remove test.");
+    }
+  };
+
+  // ─── Followup Handlers ──────────────────────────────────────
+  const handleSaveFollowup = async (fu: any) => {
+    try {
+      const res = await opdConsultationService.scheduleFollowup(opdId, {
+        recommended_date: fu.date,
+        reason: fu.reason,
+      });
+      setConsultationData((prev) => ({
+        ...prev,
+        followUps: [...prev.followUps.filter((f) => f.id !== fu.id), res.data],
+      }));
+    } catch (e: any) {
+      alert(e?.message || "Failed to schedule follow-up.");
+    }
+    setFollowupModal(false);
+    setEditFollowup(undefined);
+  };
+
+  const handleRemoveFollowup = async (id: number) => {
+    try {
+      await opdConsultationService.removeFollowup(opdId, id);
+      setConsultationData((prev) => ({
+        ...prev,
+        followUps: prev.followUps.filter((f) => f.id !== id),
+      }));
+    } catch (e: any) {
+      alert(e?.message || "Failed to remove follow-up.");
+    }
+  };
+
+  // ─── Complete Consultation ──────────────────────────────────
+  const handleComplete = async () => {
+    setCompleting(true);
+    try {
+      await opdConsultationService.completeConsultation(opdId);
+      alert("Consultation completed successfully!");
+      router.push("/doctor/opd");
+    } catch (e: any) {
+      alert(e?.message || "Failed to complete consultation.");
+    } finally {
+      setCompleting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!patient) {
+    return (
+      <div className="flex items-center justify-center h-screen text-muted-foreground">
+        Visit not found or patient data unavailable.
+      </div>
+    );
+  }
 
   return (
-    <main className="min-h-screen bg-background flex flex-col relative">
-      <PatientHeader patient={mockPatientEMR} isAutosaving={isSaving} />
-      <ConsultationStepper currentStep={step} setStep={setStep} />
+    <main className="min-h-screen bg-background">
+      <PatientHeader patient={patient} isAutosaving={isAutosaving} />
 
-      <div className="flex-1 max-w-[1400px] mx-auto w-full p-4 sm:p-6 lg:p-8 flex flex-col">
-        <div className="flex-1">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={step}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              {step === 1 && <PatientProfileStep patient={mockPatientEMR} />}
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+          {/* Main Content Area */}
+          <div className="xl:col-span-3 space-y-6">
+            {/* Stepper */}
+            <div className="flex flex-wrap gap-2 p-2 bg-muted/10 rounded-xl border border-border">
+              {steps.map((step, i) => (
+                <button
+                  key={step}
+                  onClick={() => setCurrentStep(i)}
+                  className={`flex-1 px-3 py-2.5 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${
+                    i === currentStep
+                      ? "bg-primary text-primary-foreground shadow-md"
+                      : i < currentStep
+                        ? "bg-success/10 text-success hover:bg-success/20"
+                        : "text-muted-foreground hover:bg-muted/20"
+                  }`}
+                >
+                  {i < currentStep ? "✓ " : ""}
+                  {step}
+                </button>
+              ))}
+            </div>
 
-              {step === 2 && (
-                <ConsultationStep
-                  data={data}
-                  updateData={updateData}
-                  onOpenDiagnosis={() =>
-                    setDiagModal({ isOpen: true, data: null })
-                  }
-                  onEditDiagnosis={(d) =>
-                    setDiagModal({ isOpen: true, data: d })
-                  }
-                  onOpenProcedure={() =>
-                    setProcModal({ isOpen: true, data: null })
-                  }
-                  onEditProcedure={(p) =>
-                    setProcModal({ isOpen: true, data: p })
-                  }
-                />
+            {/* Step Content */}
+            {currentStep === 0 && (
+              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+                {/* Patient info is shown in PatientHeader, step 0 can show extended profile */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-card border border-border rounded-xl p-5 space-y-3">
+                    <h3 className="font-bold text-foreground text-sm uppercase tracking-wider border-b border-border pb-2">
+                      Contact Details
+                    </h3>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-muted-foreground text-xs">Phone</p>
+                        <p className="font-medium">{patient.phone || "N/A"}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground text-xs">Email</p>
+                        <p className="font-medium">{patient.email || "N/A"}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground text-xs">City</p>
+                        <p className="font-medium">{patient.city || "N/A"}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground text-xs">Address</p>
+                        <p className="font-medium">
+                          {patient.address || "N/A"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-card border border-border rounded-xl p-5 space-y-3">
+                    <h3 className="font-bold text-foreground text-sm uppercase tracking-wider border-b border-border pb-2">
+                      Medical Summary
+                    </h3>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-muted-foreground text-xs">
+                          Blood Group
+                        </p>
+                        <p className="font-bold text-destructive">
+                          {patient.bloodGroup}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground text-xs">DOB</p>
+                        <p className="font-medium">{patient.dob}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground text-xs">
+                          Allergies
+                        </p>
+                        <p className="font-medium">{patient.allergies}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground text-xs">
+                          Chronic Conditions
+                        </p>
+                        <p className="font-medium">
+                          {patient.chronicConditions}
+                        </p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-muted-foreground text-xs">
+                          Current Medications
+                        </p>
+                        <p className="font-medium">
+                          {patient.currentMedications}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {currentStep === 1 && (
+              <ConsultationStep
+                data={consultationData}
+                updateData={updateData}
+                onEditDiagnosis={(d) => {
+                  setEditDiag(d);
+                  setDiagModal(true);
+                }}
+                onEditProcedure={(p) => {
+                  setEditProc(p);
+                  setProcModal(true);
+                }}
+                onOpenDiagnosis={() => {
+                  setEditDiag(undefined);
+                  setDiagModal(true);
+                }}
+                onOpenProcedure={() => {
+                  setEditProc(undefined);
+                  setProcModal(true);
+                }}
+              />
+            )}
+
+            {currentStep === 2 && (
+              <PrescriptionStep
+                data={consultationData}
+                updateData={updateData}
+                onEditMedicine={(m) => {
+                  setEditMed(m);
+                  setMedModal(true);
+                }}
+                onOpenMedicine={() => {
+                  setEditMed(undefined);
+                  setMedModal(true);
+                }}
+              />
+            )}
+
+            {currentStep === 3 && (
+              <TestStep
+                data={consultationData}
+                updateData={updateData}
+                onEditTest={(t) => {
+                  setEditTest(t);
+                  setTestModal(true);
+                }}
+                onOpenTest={() => {
+                  setEditTest(undefined);
+                  setTestModal(true);
+                }}
+              />
+            )}
+
+            {currentStep === 4 && (
+              <FollowupStep
+                data={consultationData}
+                updateData={updateData}
+                onEditFollowup={(f) => {
+                  setEditFollowup(f);
+                  setFollowupModal(true);
+                }}
+                onOpenFollowup={() => {
+                  setEditFollowup(undefined);
+                  setFollowupModal(true);
+                }}
+              />
+            )}
+
+            {currentStep === 5 && (
+              <ConsultationSummaryStep data={consultationData} />
+            )}
+
+            {/* Navigation */}
+            <div className="flex justify-between pt-4">
+              <Button
+                variant="outline"
+                disabled={currentStep === 0}
+                onClick={() => setCurrentStep((s) => s - 1)}
+              >
+                ← Previous
+              </Button>
+              {currentStep < steps.length - 1 ? (
+                <Button onClick={() => setCurrentStep((s) => s + 1)}>
+                  Next →
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleComplete}
+                  disabled={completing}
+                  className="gap-2 bg-success hover:bg-success/90 text-success-foreground font-bold shadow-lg shadow-success/20"
+                >
+                  <CheckCircle2 className="w-5 h-5" />
+                  {completing ? "Completing..." : "Complete Consultation"}
+                </Button>
               )}
-
-              {step === 3 && (
-                <PrescriptionStep
-                  data={data}
-                  updateData={updateData}
-                  onOpenMedicine={() =>
-                    setMedModal({ isOpen: true, data: null })
-                  }
-                  onEditMedicine={(m) => setMedModal({ isOpen: true, data: m })}
-                />
-              )}
-
-              {step === 4 && (
-                <TestsStep
-                  data={data}
-                  updateData={updateData}
-                  onOpenTest={() => setTestModal({ isOpen: true, data: null })}
-                  onEditTest={(t: any) =>
-                    setTestModal({ isOpen: true, data: t })
-                  }
-                />
-              )}
-
-              {step === 5 && (
-                <FollowUpStep
-                  data={data}
-                  updateData={updateData}
-                  onOpenFollowup={() =>
-                    setFollowModal({ isOpen: true, data: null })
-                  }
-                  onEditFollowup={(f: any) =>
-                    setFollowModal({ isOpen: true, data: f })
-                  }
-                />
-              )}
-
-              {step === 6 && <ConsultationSummaryStep data={data} />}
-            </motion.div>
-          </AnimatePresence>
-        </div>
-
-        {/* Bottom Action Bar */}
-        <div className="mt-8 pt-4 border-t border-border flex items-center justify-between sticky bottom-0 bg-background/90 backdrop-blur-sm py-4 z-30">
-          <div className="flex gap-3">
-            <Button
-              variant="outline"
-              onClick={handleBack}
-              disabled={step === 1}
-              className="w-24 gap-2"
-            >
-              <ArrowLeft className="w-4 h-4" /> Back
-            </Button>
-            <Button variant="secondary" className="gap-2 hidden sm:flex">
-              <Save className="w-4 h-4" /> Save Draft
-            </Button>
+            </div>
           </div>
 
-          {step < 6 ? (
-            <Button onClick={handleNext} className="w-32 gap-2 shadow-sm">
-              Next <ArrowRight className="w-4 h-4" />
-            </Button>
-          ) : (
-            <Button
-              onClick={handleComplete}
-              className="bg-success hover:bg-success/90 text-success-foreground gap-2 shadow-md"
-            >
-              <CheckCircle className="w-4 h-4" /> Complete Consultation
-            </Button>
-          )}
+          {/* Right Sidebar */}
+          <div className="xl:col-span-1">
+            <PastVisitsTimeline visits={pastVisits} />
+          </div>
         </div>
       </div>
 
-      {/* --- ALL MODALS --- */}
+      {/* Modals */}
       <AddDiagnosisModal
-        isOpen={diagModal.isOpen}
-        onClose={() => setDiagModal({ isOpen: false, data: null })}
-        defaultValues={diagModal.data}
-        onSave={(d) => handleSaveItem("diagnoses", d)}
+        isOpen={diagModal}
+        onClose={() => {
+          setDiagModal(false);
+          setEditDiag(undefined);
+        }}
+        onSave={handleSaveDiagnosis}
+        editData={editDiag}
       />
       <AddProcedureModal
-        isOpen={procModal.isOpen}
-        onClose={() => setProcModal({ isOpen: false, data: null })}
-        defaultValues={procModal.data}
-        onSave={(p) => handleSaveItem("procedures", p)}
+        isOpen={procModal}
+        onClose={() => {
+          setProcModal(false);
+          setEditProc(undefined);
+        }}
+        onSave={handleSaveProcedure}
+        editData={editProc}
       />
       <AddMedicineModal
-        isOpen={medModal.isOpen}
-        onClose={() => setMedModal({ isOpen: false, data: null })}
-        defaultValues={medModal.data}
-        onSave={(m) => handleSaveItem("prescriptions", m)}
+        isOpen={medModal}
+        onClose={() => {
+          setMedModal(false);
+          setEditMed(undefined);
+        }}
+        onSave={handleSaveMedicine}
+        editData={editMed}
       />
       <AddTestModal
-        isOpen={testModal.isOpen}
-        onClose={() => setTestModal({ isOpen: false, data: null })}
-        defaultValues={testModal.data as any}
-        onSave={(t) => handleSaveItem("tests", t)}
+        isOpen={testModal}
+        onClose={() => {
+          setTestModal(false);
+          setEditTest(undefined);
+        }}
+        onSave={handleSaveTest}
+        editData={editTest}
       />
       <AddFollowupModal
-        isOpen={followModal.isOpen}
-        onClose={() => setFollowModal({ isOpen: false, data: null })}
-        defaultValues={followModal.data}
-        onSave={(f) => handleSaveItem("followUps", f)}
+        isOpen={followupModal}
+        onClose={() => {
+          setFollowupModal(false);
+          setEditFollowup(undefined);
+        }}
+        onSave={handleSaveFollowup}
+        editData={editFollowup}
       />
     </main>
   );

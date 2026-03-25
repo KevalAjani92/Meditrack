@@ -5,6 +5,7 @@ import { X, IndianRupee, Printer, Download, FileText, CheckCircle2, AlertTriangl
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Payment, getStatusStyles } from "@/types/payment";
+import { useRouter } from "next/navigation";
 
 interface Props {
   isOpen: boolean;
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export default function PaymentDetailModal({ isOpen, onClose, payment }: Props) {
+  const router = useRouter();
   if (!payment) return null;
 
   return (
@@ -79,14 +81,14 @@ export default function PaymentDetailModal({ isOpen, onClose, payment }: Props) 
 
           {/* Footer Actions */}
           <div className="p-4 bg-muted/30 border-t border-border flex justify-between gap-3">
-             <Button variant="outline" className="text-xs h-9 gap-1.5">
+             <Button onClick={()=>router.push(`/receptionist/billing/print/${payment.billId}`)} variant="outline" className="text-xs h-9 gap-1.5">
                <FileText className="w-3.5 h-3.5" /> View Bill
              </Button>
              <div className="flex gap-2">
-                <Button variant="secondary" className="gap-1.5 h-9 text-xs">
+                <Button onClick={()=>router.push(`/receptionist/payments/print/${payment.id}`)} variant="secondary" className="gap-1.5 h-9 text-xs">
                   <Download className="w-3.5 h-3.5" /> PDF
                 </Button>
-                <Button className="gap-1.5 h-9 text-xs">
+                <Button onClick={()=>router.push(`/receptionist/payments/print/${payment.id}`)} className="gap-1.5 h-9 text-xs">
                   <Printer className="w-3.5 h-3.5" /> Print
                 </Button>
              </div>

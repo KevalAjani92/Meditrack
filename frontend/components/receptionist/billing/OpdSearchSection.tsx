@@ -1,30 +1,49 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Search, Receipt, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import { OpdVisit, mockOpdVisits } from "@/types/billing";
+import { OpdVisit } from "@/types/billing";
+import { billingService } from "@/services/billing.service";
 
 interface Props {
+  hospitalId: number;
   onSelectVisit: (visit: OpdVisit) => void;
 }
 
-export default function OpdSearchSection({ onSelectVisit }: Props) {
+export default function OpdSearchSection({ hospitalId, onSelectVisit }: Props) {
   const [selectedOpdNo, setSelectedOpdNo] = useState("");
   const [searchResult, setSearchResult] = useState<OpdVisit | null>(null);
+  const [visits, setVisits] = useState<OpdVisit[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const opdOptions = useMemo(() => {
-    return mockOpdVisits.map(v => ({
-      label: `${v.opdNo} - ${v.patientName} (${v.status})`,
-      value: v.opdNo
-    }));
-  }, []);
+  // Fetch visits on mount and when search changes
+  const fetchVisits = useCallback(async (search?: string) => {
+    try {
+      setLoading(true);
+      const res = await billingService.searchVisits(hospitalId, { search });
+      setVisits(res || []);
+    } catch {
+      setVisits([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [hospitalId]);
+
+  useEffect(() => {
+    fetchVisits();
+  }, [fetchVisits]);
+
+  const opdOptions = visits.map(v => ({
+    label: `${v.opdNo} - ${v.patientName} (${v.status})`,
+    value: v.opdNo
+  }));
 
   const handleSearch = () => {
-    const visit = mockOpdVisits.find(v => v.opdNo === selectedOpdNo);
+    const visit = visits.find(v => v.opdNo === selectedOpdNo);
     setSearchResult(visit || null);
   };
 
@@ -36,12 +55,18 @@ export default function OpdSearchSection({ onSelectVisit }: Props) {
           <SearchableSelect 
             options={opdOptions}
             value={selectedOpdNo}
-            onChange={setSelectedOpdNo}
+            onChange={(val) => {
+              setSelectedOpdNo(val);
+              // Also search API when user types
+              if (val.length >= 2) {
+                fetchVisits(val);
+              }
+            }}
             placeholder="Search by OPD No or Patient Name..."
-            emptyMessage="No visits found."
+            emptyMessage={loading ? "Loading..." : "No visits found."}
           />
         </div>
-        <Button onClick={handleSearch} className="gap-2 shrink-0">
+        <Button onClick={handleSearch} className="gap-2 shrink-0" disabled={!selectedOpdNo}>
           <Search className="w-4 h-4" /> Find Visit
         </Button>
       </div>

@@ -1,52 +1,57 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
+import { Calculator } from "lucide-react";
 
 interface Props {
   subtotal: number;
-  taxPct: number;
-  discountAmt: number;
-  total: number;
+  taxPercent: number;
+  discount: number;
   isReadOnly: boolean;
-  onUpdateTax: (val: number) => void;
-  onUpdateDiscount: (val: number) => void;
+  onTaxChange: (val: number) => void;
+  onDiscountChange: (val: number) => void;
 }
 
-export default function BillSummaryCard({ subtotal, taxPct, discountAmt, total, isReadOnly, onUpdateTax, onUpdateDiscount }: Props) {
-  const taxAmount = (subtotal * taxPct) / 100;
+export default function BillSummaryCard({ subtotal, taxPercent, discount, isReadOnly, onTaxChange, onDiscountChange }: Props) {
+  const taxAmount = (subtotal * taxPercent) / 100;
+  const total = subtotal + taxAmount - discount;
 
   return (
-    <Card className="p-5 border-border shadow-sm h-full flex flex-col justify-between">
-      <h3 className="font-bold text-foreground mb-4 border-b border-border pb-2">Bill Summary</h3>
-      
-      <div className="space-y-4 flex-1">
-        <div className="flex justify-between items-center text-sm">
-          <span className="text-muted-foreground font-medium">Subtotal</span>
-          <span className="font-semibold text-foreground">${subtotal.toFixed(2)}</span>
+    <Card className="p-5 border-border shadow-sm mb-6">
+      <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+        <Calculator className="w-4 h-4 text-primary" /> Bill Summary
+      </h3>
+      <div className="space-y-3 max-w-xs ml-auto">
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Subtotal</span>
+          <span className="font-medium">₹{subtotal.toFixed(2)}</span>
         </div>
-
-        <div className="flex justify-between items-center text-sm">
-          <span className="text-muted-foreground font-medium">Tax (%)</span>
+        <div className="flex justify-between text-sm items-center gap-2">
+          <span className="text-muted-foreground">Tax (%)</span>
           <input 
-            type="number" min="0" disabled={isReadOnly} value={taxPct}
-            onChange={(e) => onUpdateTax(parseFloat(e.target.value) || 0)}
-            className="w-20 px-2 py-1 text-right border border-input rounded bg-background focus:ring-1 focus:ring-primary disabled:opacity-50 outline-none"
+            type="number" min="0" max="100" step="0.5" disabled={isReadOnly}
+            value={taxPercent}
+            onChange={(e) => onTaxChange(parseFloat(e.target.value) || 0)}
+            className="w-20 px-2 py-1 text-right border border-input rounded bg-background text-sm focus:ring-1 focus:ring-primary disabled:opacity-50 outline-none"
           />
         </div>
-
-        <div className="flex justify-between items-center text-sm">
-          <span className="text-muted-foreground font-medium">Discount ($)</span>
+        <div className="flex justify-between text-sm text-muted-foreground">
+          <span>Tax Amount</span>
+          <span>₹{taxAmount.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between text-sm items-center gap-2">
+          <span className="text-muted-foreground">Discount (₹)</span>
           <input 
-            type="number" min="0" disabled={isReadOnly} value={discountAmt}
-            onChange={(e) => onUpdateDiscount(parseFloat(e.target.value) || 0)}
-            className="w-24 px-2 py-1 text-right border border-input rounded bg-background focus:ring-1 focus:ring-primary disabled:opacity-50 outline-none text-success"
+            type="number" min="0" step="0.5" disabled={isReadOnly}
+            value={discount}
+            onChange={(e) => onDiscountChange(parseFloat(e.target.value) || 0)}
+            className="w-24 px-2 py-1 text-right border border-input rounded bg-background text-sm focus:ring-1 focus:ring-primary disabled:opacity-50 outline-none"
           />
         </div>
-      </div>
-
-      <div className="mt-6 pt-4 border-t border-border border-dashed flex justify-between items-center">
-        <span className="text-lg font-bold text-foreground uppercase tracking-wider">Total Amount</span>
-        <span className="text-2xl font-black text-primary">${total.toFixed(2)}</span>
+        <div className="border-t border-border pt-3 flex justify-between font-bold text-lg">
+          <span className="text-foreground">Grand Total</span>
+          <span className="text-primary">₹{total.toFixed(2)}</span>
+        </div>
       </div>
     </Card>
   );

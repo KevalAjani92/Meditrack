@@ -43,7 +43,7 @@ export default function ScheduledVisitSection({ onSelect, hospitalId }: Props) {
   // }, []);
   const appointmentOptions = useMemo(() => {
     return appointments.map((apt: any) => ({
-      label: `${apt.appointmentNo} (${new Date(apt.time).toISOString().split('T')[1]})`,
+      label: `${apt.appointmentNo} (${new Date(apt.time).toISOString().split("T")[1]})`,
       value: apt.id,
     }));
   }, [appointments]);
@@ -59,16 +59,18 @@ export default function ScheduledVisitSection({ onSelect, hospitalId }: Props) {
     const appointment = await appointmentService.getAppointmentDetails(
       Number(appointmentId),
     );
-    const patient = await patientService.getPatientSummary(appointment.patient.patient_id);
-    console.log(appointment)
+    const patient = await patientService.getPatientSummary(
+      appointment.patient.patient_id,
+    );
+    console.log(appointment);
 
     const mappedAppointment = {
-      id: appointment.appointment_id,
-      appointmentNo: appointment.appointment_id,
+      id: appointment.id,
+      appointmentNo: appointment.appointmentNo,
       patientId: appointment.patient.patient_id,
-      patientName:appointment.patient.full_name,
-      doctorId: appointment.doctor.doctor_id,
-      doctorName:appointment.doctor.name,
+      patientName: appointment.patient.full_name,
+      doctorId: appointment.doctor.id,
+      doctorName: appointment.doctor.name,
       date: appointment.date,
       time: appointment.time,
     };
@@ -134,21 +136,19 @@ export default function ScheduledVisitSection({ onSelect, hospitalId }: Props) {
                 Patient Details
               </p>
               <p className="font-medium text-foreground flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5" />{" "}
-                {result.patientName}
+                <User className="w-3.5 h-3.5" /> {result.patientName}
               </p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground mb-0.5">
                 Consulting Doctor
               </p>
-              <p className="font-medium text-foreground">
-                {result.doctorName}
-              </p>
+              <p className="font-medium text-foreground">{result.doctorName}</p>
             </div>
             <div className="col-span-2 flex items-center gap-4 p-2 bg-background/50 rounded border border-border">
               <span className="flex items-center gap-1.5 text-muted-foreground">
-                <Calendar className="w-4 h-4 text-primary" /> {new Date(result.date).toLocaleDateString("en-IN")}
+                <Calendar className="w-4 h-4 text-primary" />{" "}
+                {new Date(result.date).toLocaleDateString("en-IN")}
               </span>
               <span className="flex items-center gap-1.5 text-muted-foreground">
                 <Clock className="w-4 h-4 text-primary" /> {result.time}

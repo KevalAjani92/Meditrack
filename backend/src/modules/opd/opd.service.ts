@@ -154,7 +154,6 @@ export class OpdService {
       /* ------------------------------------------------
        4️⃣ Appointment Validation
     ------------------------------------------------ */
-
       if (dto.appointment_id) {
         const appointment = await tx.appointments.findUnique({
           where: { appointment_id: dto.appointment_id },

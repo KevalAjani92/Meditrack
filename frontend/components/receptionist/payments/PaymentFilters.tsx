@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Search, Filter, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { billingPaymentsService } from "@/services/billing-payments.service";
 
 interface FilterState {
   search: string;
@@ -10,7 +12,6 @@ interface FilterState {
   toDate: string;
   mode: string;
   status: string;
-  doctor: string;
 }
 
 interface Props {
@@ -21,6 +22,14 @@ interface Props {
 }
 
 export default function PaymentFilters({ filters, setFilters, onApply, onReset }: Props) {
+  const [modes, setModes] = useState<{ paymentModeId: number; paymentModeName: string }[]>([]);
+
+  useEffect(() => {
+    billingPaymentsService.getPaymentModes().then(res => {
+      setModes(res || []);
+    }).catch(() => {});
+  }, []);
+
   const handleChange = (field: keyof FilterState, val: string) => {
     setFilters(prev => ({ ...prev, [field]: val }));
   };
@@ -48,11 +57,9 @@ export default function PaymentFilters({ filters, setFilters, onApply, onReset }
 
         <select value={filters.mode} onChange={e => handleChange("mode", e.target.value)} className={inputClass}>
           <option value="All">All Modes</option>
-          <option value="Cash">Cash</option>
-          <option value="Card">Card</option>
-          <option value="UPI">UPI</option>
-          <option value="Insurance">Insurance</option>
-          <option value="Online">Online</option>
+          {modes.map(m => (
+            <option key={m.paymentModeId} value={m.paymentModeName}>{m.paymentModeName}</option>
+          ))}
         </select>
 
         <select value={filters.status} onChange={e => handleChange("status", e.target.value)} className={inputClass}>

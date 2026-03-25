@@ -22,6 +22,11 @@ import { DoctorsAdminModule } from './modules/doctors/doctors.module';
 import { ReceptionistsAdminModule } from './modules/receptionists/receptionists.module';
 import { CommonModule } from './common/common.module';
 import { OpdModule } from './modules/opd/opd.module';
+import { DoctorOpdModule } from './modules/doctor-opd/doctor-opd.module';
+import { OpdConsultationModule } from './modules/opd-consultation/opd-consultation.module';
+import { EventsModule } from './modules/events/events.module';
+import { BillingModule } from './modules/billing/billing.module';
+import { BillingPaymentsModule } from './modules/billing-payments/billing-payments.module';
 
 @Module({
   imports: [
@@ -46,6 +51,11 @@ import { OpdModule } from './modules/opd/opd.module';
     ReceptionistsAdminModule,
     CommonModule,
     OpdModule,
+    DoctorOpdModule,
+    OpdConsultationModule,
+    EventsModule,
+    BillingModule,
+    BillingPaymentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,85 +1,124 @@
 "use client";
 
-import { useEffect } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
-import { useForm } from "react-hook-form";
-import * as z from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { X } from "lucide-react";
-import { Prescription } from "@/types/consultation";
+import { useState, useEffect } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import { SearchableSelect, SearchableSelectOption } from "@/components/ui/searchable-select";
+import { opdConsultationService } from "@/services/opd-consultation.service";
+import { Prescription } from "@/types/consultation";
 
-const schema = z.object({
-  medicineName: z.string().min(2, "Medicine required"),
-  dosage: z.string().min(1, "Dosage required"),
-  quantity: z.coerce.number().min(1),
-  durationDays: z.coerce.number().min(1),
-  instructions: z.string().optional(),
-  timing: z.enum(["Before Food", "After Food", "Anytime"]),
-});
+interface Props {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (data: any) => void;
+  editData?: Prescription;
+}
 
-interface Props { isOpen: boolean; onClose: () => void; onSave: (data: any) => void; defaultValues: Prescription | null; }
+export default function AddMedicineModal({ isOpen, onClose, onSave, editData }: Props) {
+  const [options, setOptions] = useState<SearchableSelectOption[]>([]);
+  const [selectedValue, setSelectedValue] = useState("");
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [dosage, setDosage] = useState("");
+  const [quantity, setQuantity] = useState(1);
+  const [durationDays, setDurationDays] = useState(7);
+  const [instructions, setInstructions] = useState("");
+  const [timing, setTiming] = useState("After Meals");
 
-const mockMedicines = [
-  { label: "Paracetamol 500mg", value: "Paracetamol 500mg" },
-  { label: "Amoxicillin 250mg", value: "Amoxicillin 250mg" },
-  { label: "Amlodipine 5mg", value: "Amlodipine 5mg" },
-];
+  useEffect(() => {
+    if (isOpen) {
+      opdConsultationService.lookupMedicines("").then((res) => {
+        setOptions(res.map((d: any) => ({ label: d.label, value: d.value, id: d.id })));
+      });
+    }
+  }, [isOpen]);
 
-export default function AddMedicineModal({ isOpen, onClose, onSave, defaultValues }: Props) {
-  const isEdit = !!defaultValues;
-  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm({ resolver: zodResolver(schema), defaultValues: { timing: "After Food", durationDays: 5, quantity: 10 } });
+  useEffect(() => {
+    if (editData) {
+      setSelectedValue(editData.medicineName);
+      setSelectedId(editData.medicineId || editData.id);
+      setDosage(editData.dosage);
+      setQuantity(editData.quantity);
+      setDurationDays(editData.durationDays);
+      setInstructions(editData.instructions);
+      setTiming(editData.timing);
+    } else {
+      setSelectedValue("");
+      setSelectedId(null);
+      setDosage("");
+      setQuantity(1);
+      setDurationDays(7);
+      setInstructions("");
+      setTiming("After Meals");
+    }
+  }, [editData, isOpen]);
 
-  useEffect(() => { if (isOpen) reset(defaultValues || { medicineName: "", dosage: "1-0-1", quantity: 10, durationDays: 5, instructions: "", timing: "After Food" }); }, [isOpen, defaultValues, reset]);
+  const handleSelectChange = (value: string) => {
+    setSelectedValue(value);
+    const matched = (options as any[]).find((o) => o.value === value);
+    if (matched) setSelectedId(matched.id);
+  };
 
-  const onSubmit = (data: any) => { onSave({ id: defaultValues?.id || `med-${Date.now()}`, ...data }); onClose(); };
+  const handleSave = () => {
+    if (!selectedValue || !selectedId || !dosage) return;
+    onSave({
+      medicineId: selectedId,
+      medicineName: selectedValue,
+      dosage,
+      quantity,
+      durationDays,
+      instructions,
+      timing,
+    });
+  };
 
   return (
-    <Dialog.Root open={isOpen} onOpenChange={onClose}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 animate-in fade-in" />
-        <Dialog.Content className="fixed left-[50%] top-[50%] z-50 w-full max-w-md translate-x-[-50%] translate-y-[-50%] rounded-xl bg-card p-6 shadow-xl border border-border animate-in zoom-in-95">
-          <div className="flex justify-between items-center mb-5"><Dialog.Title className="text-lg font-bold">{isEdit ? "Edit Medicine" : "Add Medicine"}</Dialog.Title><button onClick={onClose}><X className="w-5 h-5 text-muted-foreground"/></button></div>
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Search Medicine</label>
-              <SearchableSelect options={mockMedicines} onChange={(v) => setValue("medicineName", v)} value={watch("medicineName")} placeholder="Type to search..." />
-              {errors.medicineName && <p className="text-xs text-destructive">{(errors.medicineName as any).message}</p>}
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-[550px]">
+        <DialogHeader>
+          <DialogTitle>{editData ? "Edit" : "Add"} Medicine</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div>
+            <label className="text-sm font-medium text-foreground">Medicine Name <span className="text-destructive">*</span></label>
+            <SearchableSelect options={options} value={selectedValue} onChange={handleSelectChange} placeholder="Search medicine..." className="mt-1" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium text-foreground">Dosage <span className="text-destructive">*</span></label>
+              <input value={dosage} onChange={(e) => setDosage(e.target.value)} className="w-full mt-1 p-2.5 border border-input rounded-md bg-background text-sm" placeholder="e.g. 500mg" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Dosage</label>
-                <input {...register("dosage")} placeholder="1-0-1" className="w-full px-3 py-2 border border-input rounded-md bg-background focus:ring-1 focus:ring-primary outline-none" />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Timing</label>
-                <select {...register("timing")} className="w-full px-3 py-2 border border-input rounded-md bg-background focus:ring-1 focus:ring-primary outline-none">
-                  <option value="Before Food">Before Food</option>
-                  <option value="After Food">After Food</option>
-                  <option value="Anytime">Anytime</option>
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Duration (Days)</label>
-                <input type="number" {...register("durationDays")} className="w-full px-3 py-2 border border-input rounded-md bg-background focus:ring-1 focus:ring-primary outline-none" />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Total Quantity</label>
-                <input type="number" {...register("quantity")} className="w-full px-3 py-2 border border-input rounded-md bg-background focus:ring-1 focus:ring-primary outline-none" />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Special Instructions</label>
-              <input {...register("instructions")} className="w-full px-3 py-2 border border-input rounded-md bg-background focus:ring-1 focus:ring-primary outline-none" placeholder="e.g. Take with warm water" />
-            </div>
-            <div className="flex justify-end gap-2 pt-4">
-              <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-              <Button type="button" onClick={handleSubmit(onSubmit)}>{isEdit ? "Save Changes" : "Add Medicine"}</Button>
+            <div>
+              <label className="text-sm font-medium text-foreground">Timing</label>
+              <select value={timing} onChange={(e) => setTiming(e.target.value)} className="w-full mt-1 p-2.5 border border-input rounded-md bg-background text-sm">
+                <option>Before Meals</option>
+                <option>After Meals</option>
+                <option>With Meals</option>
+                <option>Morning</option>
+                <option>Night</option>
+                <option>SOS</option>
+              </select>
             </div>
           </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium text-foreground">Quantity</label>
+              <input type="number" min={1} value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} className="w-full mt-1 p-2.5 border border-input rounded-md bg-background text-sm" />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground">Duration (days)</label>
+              <input type="number" min={1} value={durationDays} onChange={(e) => setDurationDays(Number(e.target.value))} className="w-full mt-1 p-2.5 border border-input rounded-md bg-background text-sm" />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-foreground">Instructions</label>
+            <textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} className="w-full mt-1 p-2.5 border border-input rounded-md bg-background text-sm resize-none h-16" placeholder="Special instructions..." />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} disabled={!selectedValue || !dosage}>Save</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

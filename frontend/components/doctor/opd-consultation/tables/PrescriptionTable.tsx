@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, Edit2, Trash2, Pill } from "lucide-react";
 
-interface Props { prescriptions: Prescription[]; onRemove: (id: string) => void; onEdit: (p: Prescription) => void; onAdd: () => void; }
+interface Props { prescriptions: Prescription[]; onRemove: (id: number) => void; onEdit: (p: Prescription) => void; onAdd: () => void; }
 
 export default function PrescriptionTable({ prescriptions, onRemove, onEdit, onAdd }: Props) {
   return (
@@ -30,7 +30,7 @@ export default function PrescriptionTable({ prescriptions, onRemove, onEdit, onA
                   <p className="text-xs text-muted-foreground">{p.instructions}</p>
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex justify-end gap-1 transition-opacity">
                     <button onClick={() => onEdit(p)} className="p-1.5 text-muted-foreground hover:text-primary"><Edit2 className="w-4 h-4"/></button>
                     <button onClick={() => onRemove(p.id)} className="p-1.5 text-muted-foreground hover:text-destructive"><Trash2 className="w-4 h-4"/></button>
                   </div>

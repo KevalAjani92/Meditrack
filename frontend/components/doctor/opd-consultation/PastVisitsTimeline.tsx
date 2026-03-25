@@ -3,10 +3,10 @@
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Clock, Eye, Activity } from "lucide-react";
-import { mockPastVisits, PastVisit } from "@/types/consultation";
+import { PastVisit } from "@/types/consultation";
 import VisitDetailsModal from "./VisitDetailsModal";
 
-export default function PastVisitsTimeline() {
+export default function PastVisitsTimeline({ visits }: { visits: PastVisit[] }) {
   const [selectedVisit, setSelectedVisit] = useState<PastVisit | null>(null);
 
   return (
@@ -16,9 +16,9 @@ export default function PastVisitsTimeline() {
           <Clock className="w-4 h-4 text-primary"/> Past Visits
         </h3>
         <div className="space-y-4">
-          {mockPastVisits.map((v, i) => (
+          {visits.map((v, i) => (
             <div key={v.id} className="relative flex gap-3">
-              {i !== mockPastVisits.length - 1 && <div className="absolute left-2.5 top-6 bottom-[-16px] w-0.5 bg-border" />}
+              {i !== visits.length - 1 && <div className="absolute left-2.5 top-6 bottom-[-16px] w-0.5 bg-border" />}
               <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center shrink-0 mt-0.5 z-10"><div className="w-2 h-2 rounded-full bg-primary" /></div>
               <div className="bg-muted/20 border border-border p-3 rounded-lg flex-1">
                 <div className="flex justify-between items-center mb-1">
@@ -37,7 +37,7 @@ export default function PastVisitsTimeline() {
               </div>
             </div>
           ))}
-          {mockPastVisits.length === 0 && (
+          {visits.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-4">No previous visits found.</p>
           )}
         </div>

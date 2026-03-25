@@ -1,96 +1,78 @@
 "use client";
 
-import { useEffect } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
-import { useForm } from "react-hook-form";
-import * as z from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { X } from "lucide-react";
-import { TestOrder } from "@/types/consultation";
+import { useState, useEffect } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import { SearchableSelect, SearchableSelectOption } from "@/components/ui/searchable-select";
+import { opdConsultationService } from "@/services/opd-consultation.service";
+import { TestOrder } from "@/types/consultation";
 
-const schema = z.object({
-  testName: z.string().min(2, "Test name required"),
-  code: z.string().optional(),
-  status: z.enum(["Ordered", "Sample Collected", "Completed", "Cancelled"]),
-  remarks: z.string().optional(),
-});
+interface Props {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (data: any) => void;
+  editData?: TestOrder;
+}
 
-interface Props { isOpen: boolean; onClose: () => void; onSave: (data: any) => void; defaultValues: TestOrder | null; }
+export default function AddTestModal({ isOpen, onClose, onSave, editData }: Props) {
+  const [options, setOptions] = useState<SearchableSelectOption[]>([]);
+  const [selectedValue, setSelectedValue] = useState("");
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [remarks, setRemarks] = useState("");
 
-const mockTests = [
-  { label: "Complete Blood Count (CBC) | LAB-101", value: "Complete Blood Count (CBC)|LAB-101" },
-  { label: "Lipid Profile | LAB-105", value: "Lipid Profile|LAB-105" },
-  { label: "Chest X-Ray | IMG-201", value: "Chest X-Ray|IMG-201" },
-];
+  useEffect(() => {
+    if (isOpen) {
+      opdConsultationService.lookupTests("").then((res) => {
+        setOptions(res.map((d: any) => ({ label: d.label, value: d.value, id: d.id })));
+      });
+    }
+  }, [isOpen]);
 
-export default function AddTestModal({ isOpen, onClose, onSave, defaultValues }: Props) {
-  const isEdit = !!defaultValues;
-  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm({ 
-    resolver: zodResolver(schema), 
-    defaultValues: { status: "Ordered" } 
-  });
+  useEffect(() => {
+    if (editData) {
+      setSelectedValue(`${editData.testName}|${editData.code}`);
+      setSelectedId(editData.testId || editData.id);
+      setRemarks(editData.remarks);
+    } else {
+      setSelectedValue("");
+      setSelectedId(null);
+      setRemarks("");
+    }
+  }, [editData, isOpen]);
 
-  useEffect(() => { 
-    if (isOpen) reset(defaultValues || { testName: "", code: "", status: "Ordered", remarks: "" }); 
-  }, [isOpen, defaultValues, reset]);
-
-  const handleSelect = (val: string) => {
-    if (!val) return;
-    const [testName, code] = val.split("|");
-    setValue("testName", testName);
-    setValue("code", code);
+  const handleSelectChange = (value: string) => {
+    setSelectedValue(value);
+    const matched = (options as any[]).find((o) => o.value === value);
+    if (matched) setSelectedId(matched.id);
   };
 
-  const onSubmit = (data: any) => { 
-    onSave({ id: defaultValues?.id || `test-${Date.now()}`, ...data }); 
-    onClose(); 
+  const handleSave = () => {
+    if (!selectedValue || !selectedId) return;
+    const [testName, code] = selectedValue.split("|");
+    onSave({ testId: selectedId, testName, code, remarks, status: "Ordered" });
   };
 
   return (
-    <Dialog.Root open={isOpen} onOpenChange={onClose}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 animate-in fade-in" />
-        <Dialog.Content className="fixed left-[50%] top-[50%] z-50 w-full max-w-md translate-x-[-50%] translate-y-[-50%] rounded-xl bg-card p-6 shadow-xl border border-border animate-in zoom-in-95">
-          <div className="flex justify-between items-center mb-5">
-            <Dialog.Title className="text-lg font-bold text-foreground">{isEdit ? "Edit Test Order" : "Order New Test"}</Dialog.Title>
-            <button onClick={onClose}><X className="w-5 h-5 text-muted-foreground hover:text-foreground"/></button>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>{editData ? "Edit" : "Order"} Test</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div>
+            <label className="text-sm font-medium text-foreground">Test <span className="text-destructive">*</span></label>
+            <SearchableSelect options={options} value={selectedValue} onChange={handleSelectChange} placeholder="Search test..." className="mt-1" />
           </div>
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Search Test Catalog</label>
-              <SearchableSelect 
-                options={mockTests} 
-                onChange={handleSelect} 
-                value={watch("code") ? `${watch("testName")}|${watch("code")}` : ""} 
-                placeholder="Search by test name or code..." 
-              />
-              {errors.testName && <p className="text-xs text-destructive">{(errors.testName as any).message}</p>}
-            </div>
-            
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Status</label>
-              <select {...register("status")} className="w-full px-3 py-2 border border-input rounded-md bg-background focus:ring-1 focus:ring-primary outline-none">
-                <option value="Ordered">Ordered (Pending)</option>
-                <option value="Sample Collected">Sample Collected</option>
-                <option value="Completed">Completed</option>
-                <option value="Cancelled">Cancelled</option>
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Instructions / Remarks</label>
-              <textarea {...register("remarks")} className="w-full px-3 py-2 border border-input rounded-md bg-background focus:ring-1 focus:ring-primary outline-none resize-none h-20" placeholder="e.g., Fasting required for 12 hours" />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-4 border-t border-border">
-              <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-              <Button type="button" onClick={handleSubmit(onSubmit)}>{isEdit ? "Save Changes" : "Order Test"}</Button>
-            </div>
+          <div>
+            <label className="text-sm font-medium text-foreground">Remarks / Instructions</label>
+            <textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} className="w-full mt-1 p-2.5 border border-input rounded-md bg-background text-sm resize-none h-20" placeholder="Any special instructions..." />
           </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} disabled={!selectedValue}>Order Test</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

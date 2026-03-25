@@ -4,29 +4,32 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import * as Dialog from "@radix-ui/react-dialog";
-import { X, Loader2 } from "lucide-react";
-import { BillItem } from "@/types/billing";
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const itemSchema = z.object({
   type: z.enum(["Consultation", "Test", "Procedure", "Other"]),
-  description: z.string().min(2, "Description required"),
-  quantity: z.coerce.number().min(1),
-  unitPrice: z.coerce.number().min(0),
+  desc: z.string().min(2, "Description required"),
+  qty: z.coerce.number().min(1),
+  price: z.coerce.number().min(0),
 });
 
 type FormData = z.infer<typeof itemSchema>;
 
-interface Props { isOpen: boolean; onClose: () => void; onAdd: (item: BillItem) => void; }
+interface Props {
+  isOpen: boolean;
+  onClose: () => void;
+  onAdd: (item: { type: string; desc: string; qty: number; price: number }) => void;
+}
 
 export default function AddBillItemModal({ isOpen, onClose, onAdd }: Props) {
-  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<FormData>({ resolver: zodResolver(itemSchema), defaultValues: { quantity: 1, unitPrice: 0 } });
+  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<FormData>({ resolver: zodResolver(itemSchema) as any, defaultValues: { qty: 1, price: 0 } });
   
-  const q = watch("quantity") || 0;
-  const p = watch("unitPrice") || 0;
+  const q = watch("qty") || 0;
+  const p = watch("price") || 0;
 
   const onSubmit = (data: FormData) => {
-    onAdd({ id: `item-${Date.now()}`, ...data });
+    onAdd(data);
     reset();
     onClose();
   };
@@ -52,22 +55,22 @@ export default function AddBillItemModal({ isOpen, onClose, onAdd }: Props) {
             </div>
             <div>
               <label className="text-xs font-medium mb-1 block">Description</label>
-              <input {...register("description")} className="w-full p-2 border rounded-md bg-background text-sm outline-none focus:ring-1 focus:ring-primary" placeholder="e.g. Service Fee" />
-              {errors.description && <p className="text-xs text-destructive mt-1">{errors.description.message}</p>}
+              <input {...register("desc")} className="w-full p-2 border rounded-md bg-background text-sm outline-none focus:ring-1 focus:ring-primary" placeholder="e.g. Service Fee" />
+              {errors.desc && <p className="text-xs text-destructive mt-1">{errors.desc.message}</p>}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-medium mb-1 block">Quantity</label>
-                <input type="number" {...register("quantity")} className="w-full p-2 border rounded-md bg-background text-sm outline-none focus:ring-1 focus:ring-primary text-right" />
+                <input type="number" {...register("qty")} className="w-full p-2 border rounded-md bg-background text-sm outline-none focus:ring-1 focus:ring-primary text-right" />
               </div>
               <div>
-                <label className="text-xs font-medium mb-1 block">Unit Price ($)</label>
-                <input type="number" step="0.01" {...register("unitPrice")} className="w-full p-2 border rounded-md bg-background text-sm outline-none focus:ring-1 focus:ring-primary text-right" />
+                <label className="text-xs font-medium mb-1 block">Unit Price (₹)</label>
+                <input type="number" step="0.01" {...register("price")} className="w-full p-2 border rounded-md bg-background text-sm outline-none focus:ring-1 focus:ring-primary text-right" />
               </div>
             </div>
             <div className="pt-2 flex justify-between items-center text-sm font-bold border-t border-border">
                <span>Total:</span>
-               <span className="text-primary">${(q * p).toFixed(2)}</span>
+               <span className="text-primary">₹{(q * p).toFixed(2)}</span>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>

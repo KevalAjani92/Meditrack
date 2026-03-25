@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Edit2, Trash2, CalendarClock } from "lucide-react";
 
-interface Props { followUps: FollowUp[]; onRemove: (id: string) => void; onEdit: (f: FollowUp) => void; onAdd: () => void; }
+interface Props { followUps: FollowUp[]; onRemove: (id: number) => void; onEdit: (f: FollowUp) => void; onAdd: () => void; }
 
 export default function FollowUpTable({ followUps, onRemove, onEdit, onAdd }: Props) {
   const getStatusColor = (status: string) => {
@@ -47,7 +47,7 @@ export default function FollowUpTable({ followUps, onRemove, onEdit, onAdd }: Pr
                   <Badge variant="outline" className={getStatusColor(f.status)}>{f.status}</Badge>
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex justify-end gap-1 transition-opacity">
                     <button onClick={() => onEdit(f)} className="p-1.5 text-muted-foreground hover:text-primary rounded"><Edit2 className="w-4 h-4"/></button>
                     <button onClick={() => onRemove(f.id)} className="p-1.5 text-muted-foreground hover:text-destructive rounded"><Trash2 className="w-4 h-4"/></button>
                   </div>
