@@ -5,48 +5,99 @@ import {
   UserPlus, 
   Ban, 
   FileText, 
-  RefreshCw 
+  RefreshCw, 
+  Pill,
+  FlaskConical,
+  Stethoscope,
+  ShieldCheck,
+  Users,
+  BriefcaseMedical
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { Activity } from "react";
+
+// const actions = [
+//   {
+//     label: "Create Group",
+//     icon: PlusCircle,
+//     color: "text-primary",
+//     bgColor: "bg-primary/10",
+//     onClick: () => console.log("Create Group"),
+//   },
+//   {
+//     label: "Assign Admin",
+//     icon: UserPlus,
+//     color: "text-blue-600",
+//     bgColor: "bg-blue-50",
+//     onClick: () => console.log("Assign Admin"),
+//   },
+//   {
+//     label: "Suspend Group",
+//     icon: Ban,
+//     color: "text-destructive",
+//     bgColor: "bg-destructive/10",
+//     onClick: () => console.log("Suspend Group"),
+//   },
+//   {
+//     label: "View Licenses",
+//     icon: FileText,
+//     color: "text-purple-600",
+//     bgColor: "bg-purple-50",
+//     onClick: () => console.log("View Licenses"),
+//   },
+//   {
+//     label: "Force Sync",
+//     icon: RefreshCw,
+//     color: "text-orange-600",
+//     bgColor: "bg-orange-50",
+//     onClick: () => console.log("Force Sync"),
+//   },
+// ];
 
 const actions = [
   {
-    label: "Create Group",
-    icon: PlusCircle,
+    label: "Manage Groups",
+    icon: Users,
     color: "text-primary",
     bgColor: "bg-primary/10",
-    onClick: () => console.log("Create Group"),
+    onClick: () => console.log("Manage Groups"),
   },
   {
-    label: "Assign Admin",
-    icon: UserPlus,
+    label: "Manage Admins",
+    icon: ShieldCheck,
     color: "text-blue-600",
     bgColor: "bg-blue-50",
-    onClick: () => console.log("Assign Admin"),
+    onClick: () => console.log("Manage Admins"),
   },
   {
-    label: "Suspend Group",
-    icon: Ban,
-    color: "text-destructive",
-    bgColor: "bg-destructive/10",
-    onClick: () => console.log("Suspend Group"),
+    label: "Manage Diagnosis",
+    icon: Stethoscope,
+    color: "text-green-600",
+    bgColor: "bg-green-50",
+    onClick: () => console.log("Manage Diagnosis"),
   },
   {
-    label: "View Licenses",
-    icon: FileText,
-    color: "text-purple-600",
-    bgColor: "bg-purple-50",
-    onClick: () => console.log("View Licenses"),
-  },
-  {
-    label: "Force Sync",
-    icon: RefreshCw,
+    label: "Manage Treatment Types",
+    icon: BriefcaseMedical,
     color: "text-orange-600",
     bgColor: "bg-orange-50",
-    onClick: () => console.log("Force Sync"),
+    onClick: () => console.log("Manage Treatment Types"),
+  },
+  {
+    label: "Manage Medical Tests",
+    icon: FlaskConical,
+    color: "text-purple-600",
+    bgColor: "bg-purple-50",
+    onClick: () => console.log("Manage Medical Tests"),
+  },
+  {
+    label: "Manage Medicines",
+    icon: Pill,
+    color: "text-pink-600",
+    bgColor: "bg-pink-50",
+    onClick: () => console.log("Manage Medicines"),
   },
 ];
-
 export default function QuickActions() {
   return (
     <div className="bg-card border border-border rounded-xl p-6 shadow-sm">

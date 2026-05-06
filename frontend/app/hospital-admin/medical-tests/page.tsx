@@ -74,7 +74,7 @@ export default function HospitalTestsPage() {
   };
 
   const { data: departments = [] } = useEnabledDepartments(hospitalId, "");
-  const departmentOptions = departments.map((d) => d.department_name);
+  const departmentOptions = departments.map((d: any) => d.department_name);
 
   const enableMutation = useEnableTest(hospitalId);
   const updateMutation = useUpdateTestStatus(hospitalId);

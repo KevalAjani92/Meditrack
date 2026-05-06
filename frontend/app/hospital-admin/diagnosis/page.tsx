@@ -76,7 +76,7 @@ export default function HospitalDiagnosesPage() {
   };
 
   const { data: departments = [] } = useEnabledDepartments(hospitalId, "");
-  const departmentOptions = departments.map((d) => d.department_name);
+  const departmentOptions = departments.map((d: any) => d.department_name);
 
   /*
   MUTATIONS

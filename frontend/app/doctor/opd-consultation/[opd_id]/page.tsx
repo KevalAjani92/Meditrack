@@ -468,7 +468,7 @@ export default function OPDConsultationPage() {
               <TestStep
                 data={consultationData}
                 updateData={updateData}
-                onEditTest={(t) => {
+                onEditTest={(t:any) => {
                   setEditTest(t);
                   setTestModal(true);
                 }}
@@ -483,7 +483,7 @@ export default function OPDConsultationPage() {
               <FollowupStep
                 data={consultationData}
                 updateData={updateData}
-                onEditFollowup={(f) => {
+                onEditFollowup={(f:any) => {
                   setEditFollowup(f);
                   setFollowupModal(true);
                 }}
